@@ -17,6 +17,10 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const accessPointsRef = useRef(accessPoints);
+  accessPointsRef.current = accessPoints;
+
+  const phaseRef = useRef<number>(0);
   const smoothRssi1Ref = useRef<number>(-90);
   const smoothRssi2Ref = useRef<number>(-90);
 
@@ -30,15 +34,20 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
     if (!ctx) return;
 
     let animId: number;
-    let phase = 0;
 
     const render = () => {
-      phase += 0.035;
+      phaseRef.current += 0.035;
+      const phase = phaseRef.current;
 
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
+      const targetW = Math.floor(rect.width * dpr);
+      const targetH = Math.floor(rect.height * dpr);
+
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
 
       const w = canvas.width;
       const h = canvas.height;
@@ -121,15 +130,17 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
         ctx.fillText(tick, x, h - padBottom + 16 * dpr);
       });
 
-      // Draw Oscillogram Waves with Smooth LERP Interpolation
-      const primaryAp = accessPoints[0] || null;
-      const secondaryAp = accessPoints[1] || null;
+      // Stably sort APs by signal strength so primary and secondary don't swap erratically
+      const currentAps = accessPointsRef.current;
+      const sorted = [...currentAps].sort((a, b) => b.rssi - a.rssi);
+      const primaryAp = sorted[0] || null;
+      const secondaryAp = sorted[1] || null;
 
       const target1 = primaryAp ? primaryAp.rssi : -92;
-      smoothRssi1Ref.current += (target1 - smoothRssi1Ref.current) * 0.06;
+      smoothRssi1Ref.current += (target1 - smoothRssi1Ref.current) * 0.05;
 
       const target2 = secondaryAp ? secondaryAp.rssi : -92;
-      smoothRssi2Ref.current += (target2 - smoothRssi2Ref.current) * 0.06;
+      smoothRssi2Ref.current += (target2 - smoothRssi2Ref.current) * 0.05;
 
       const drawWave = (color: string, baseRssi: number, freq: number, phaseShift: number) => {
         ctx.beginPath();
@@ -217,7 +228,7 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [viewMode, accessPoints]);
+  }, [viewMode]);
 
   return (
     <div className="oscillogram-panel">

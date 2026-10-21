@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ScannedAP, SpectrumMetrics, SpectrumRecommendations } from '../types/spectrum';
 import './DashboardView.css';
 
@@ -47,6 +47,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const smoothedLineRssiRef = useRef<Map<string, number>>(new Map());
 
+  const accessPointsRef = useRef(accessPoints);
+  accessPointsRef.current = accessPoints;
+
+  const bandSelectionRef = useRef(bandSelection);
+  bandSelectionRef.current = bandSelection;
+
+  const fftPhaseRef = useRef<number>(0);
+  const lineOffsetRef = useRef<number>(0);
+
   // Render Spectral Occupancy Bell Curves (FFT RF) using REAL Access Points with Smooth LERP
   useEffect(() => {
     const canvas = fftCanvasRef.current;
@@ -55,14 +64,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!ctx) return;
 
     let animId: number;
-    let phase = 0;
 
     const render = () => {
-      phase += 0.02;
+      fftPhaseRef.current += 0.02;
+      const phase = fftPhaseRef.current;
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
+      const targetW = Math.floor(rect.width * dpr);
+      const targetH = Math.floor(rect.height * dpr);
+
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
 
       const w = canvas.width;
       const h = canvas.height;
@@ -181,9 +195,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       // 1. Prepare target curves based on current accessPoints and bandSelection
       const activeTargets = new Map<string, { cx: number; width: number; peakDbm: number; color: string; label: string }>();
+      const currentAps = accessPointsRef.current;
+      const currentBand = bandSelectionRef.current;
 
-      if (bandSelection === 'both' || bandSelection === '2.4ghz') {
-        const aps24 = accessPoints.filter((a) => a.channel <= 14).slice(0, 8);
+      if (currentBand === 'both' || currentBand === '2.4ghz') {
+        const aps24 = currentAps.filter((a) => a.channel <= 14).slice(0, 8);
         aps24.forEach((ap) => {
           const normCh = (ap.channel - 1) / 13;
           const cxRatio = 0.08 + normCh * 0.36;
@@ -202,8 +218,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         });
       }
 
-      if (bandSelection === 'both' || bandSelection === '5ghz') {
-        const aps5 = accessPoints.filter((a) => a.channel >= 36).slice(0, 8);
+      if (currentBand === 'both' || currentBand === '5ghz') {
+        const aps5 = currentAps.filter((a) => a.channel >= 36).slice(0, 8);
         aps5.forEach((ap) => {
           let normCh = 0;
           if (ap.channel <= 64) {
@@ -301,10 +317,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [accessPoints, bandSelection]);
+  }, []);
 
   // Render RSSI Temporal Line Chart using TOP REAL access points with Smooth LERP
-  const topRealAps = [...accessPoints].sort((a, b) => b.rssi - a.rssi).slice(0, 3);
+  const topRealAps = useMemo(() => [...accessPoints].sort((a, b) => b.rssi - a.rssi).slice(0, 3), [accessPoints]);
   const chartColors = ['#06b6d4', '#a855f7', '#f43f5e'];
 
   useEffect(() => {
@@ -314,14 +330,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!ctx) return;
 
     let animId: number;
-    let offset = 0;
 
     const render = () => {
-      offset += 0.03;
+      lineOffsetRef.current += 0.03;
+      const offset = lineOffsetRef.current;
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
+      const targetW = Math.floor(rect.width * dpr);
+      const targetH = Math.floor(rect.height * dpr);
+
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
 
       const w = canvas.width;
       const h = canvas.height;
@@ -372,7 +393,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       };
 
       // Smooth LERP for RSSI lines to prevent jarring jumps
-      topRealAps.forEach((ap, idx) => {
+      const topReal = [...accessPointsRef.current].sort((a, b) => b.rssi - a.rssi).slice(0, 3);
+      topReal.forEach((ap, idx) => {
         const current = smoothedLineRssiRef.current.get(ap.bssid) ?? ap.rssi;
         const next = current + (ap.rssi - current) * 0.07;
         smoothedLineRssiRef.current.set(ap.bssid, next);
@@ -384,7 +406,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [topRealAps]);
+  }, []);
 
   // Real mapped Access Points for the table
   const realApsTable = accessPoints.map((ap) => {
