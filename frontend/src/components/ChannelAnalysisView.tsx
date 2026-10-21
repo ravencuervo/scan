@@ -95,6 +95,43 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
     }
   }, [channelMap, selectedBand]);
 
+  const bandApsRef = useRef(bandAps);
+  bandApsRef.current = bandAps;
+  const channelMapRef = useRef(channelMap);
+  channelMapRef.current = channelMap;
+  const selectedBandRef = useRef(selectedBand);
+  selectedBandRef.current = selectedBand;
+
+  // Smoothing state for channel parabolas
+  const smoothedChannelsRef = useRef<
+    Map<
+      string,
+      {
+        band: '2.4ghz' | '5ghz';
+        ch: number;
+        currentDbm: number;
+        targetDbm: number;
+        opacity: number;
+        targetOpacity: number;
+        count: number;
+        centerRatio: number;
+        widthRatio: number;
+      }
+    >
+  >(new Map());
+
+  // Smoothing state for the top pinned AP badge
+  const markerRef = useRef({
+    currentX: 0,
+    currentY: 0,
+    opacity: 0,
+    ssid: '',
+    channel: 0,
+    rssi: -95,
+    bssid: '',
+    band: '',
+  });
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -104,12 +141,25 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
     let animId: number;
     let phase = 0;
 
+    const fiveGChannels = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165];
+    const chRatio24 = (ch: number) => 0.12 + ((ch - 1) / 12) * 0.76;
+    const chRatio5 = (ch: number) => {
+      const idx = fiveGChannels.indexOf(ch);
+      if (idx === -1) return 0.5;
+      return 0.08 + (idx / (fiveGChannels.length - 1)) * 0.84;
+    };
+
     const render = () => {
       phase += 0.025;
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
+      const targetW = Math.floor(rect.width * dpr);
+      const targetH = Math.floor(rect.height * dpr);
+
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
 
       const w = canvas.width;
       const h = canvas.height;
@@ -119,6 +169,10 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
       const padBottom = 45 * dpr;
       const plotW = w - padLeft - padRight;
       const plotH = h - padTop - padBottom;
+
+      const currentBand = selectedBandRef.current;
+      const currentMap = channelMapRef.current;
+      const currentBandAps = bandApsRef.current;
 
       // Dark background
       ctx.fillStyle = '#290854';
@@ -148,7 +202,7 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
       ctx.textAlign = 'right';
       ctx.fillText('RUIDO DE PISO -95 dBm', w - padRight, padTop + plotH - 6 * dpr);
 
-      // Parabolic curve helper
+      // Parabolic curve drawing helper
       const drawChannelBell = (
         centerRatio: number,
         widthRatio: number,
@@ -159,7 +213,7 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
       ) => {
         const cx = padLeft + plotW * centerRatio;
         const bw = plotW * widthRatio;
-        const norm = (peakDbm - -95) / (-30 - -95);
+        const norm = Math.max(0, Math.min(1, (peakDbm - -95) / (-30 - -95)));
         const peakY = padTop + plotH * (1 - norm);
         const baseY = padTop + plotH;
 
@@ -187,58 +241,86 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
         ctx.fill();
       };
 
-      if (selectedBand === '2.4ghz') {
-        // Channels 1 to 13 ticks
-        const chRatio = (ch: number) => 0.12 + ((ch - 1) / 12) * 0.76;
+      // 1. Update targets for smoothed channels
+      const activeKeys = new Set<string>();
+      currentMap.forEach((aps, ch) => {
+        if (aps.length === 0) return;
+        const is24 = ch <= 14;
+        const band: '2.4ghz' | '5ghz' = is24 ? '2.4ghz' : '5ghz';
+        if (band !== currentBand) return;
 
-        // Render Real Channels
-        channelMap.forEach((aps, ch) => {
-          if (ch < 1 || ch > 14) return;
-          const bestAp = aps.reduce((p, c) => (c.rssi > p.rssi ? c : p), aps[0]);
-          const r = chRatio(ch);
-          const count = aps.length;
+        const bestAp = aps.reduce((p, c) => (c.rssi > p.rssi ? c : p), aps[0]);
+        const key = `${band}_${ch}`;
+        activeKeys.add(key);
 
+        const centerRatio = is24 ? chRatio24(ch) : chRatio5(ch);
+        const widthRatio = is24 ? 0.22 : 0.12;
+
+        const existing = smoothedChannelsRef.current.get(key);
+        if (!existing) {
+          smoothedChannelsRef.current.set(key, {
+            band,
+            ch,
+            currentDbm: -95,
+            targetDbm: bestAp.rssi,
+            opacity: 0,
+            targetOpacity: 1,
+            count: aps.length,
+            centerRatio,
+            widthRatio,
+          });
+        } else {
+          existing.targetDbm = bestAp.rssi;
+          existing.targetOpacity = 1;
+          existing.count = aps.length;
+          existing.centerRatio = centerRatio;
+          existing.widthRatio = widthRatio;
+        }
+      });
+
+      // Mark channels that are no longer active or in another band to fade out smoothly
+      smoothedChannelsRef.current.forEach((st, k) => {
+        if (!activeKeys.has(k)) {
+          st.targetDbm = -95;
+          st.targetOpacity = 0;
+        }
+      });
+
+      // 2. Interpolate and draw smoothed channels with LERP
+      const toDelete: string[] = [];
+      smoothedChannelsRef.current.forEach((st, k) => {
+        st.currentDbm += (st.targetDbm - st.currentDbm) * 0.08;
+        st.opacity += (st.targetOpacity - st.opacity) * 0.08;
+
+        if (st.opacity < 0.01 && st.targetOpacity === 0) {
+          toDelete.push(k);
+          return;
+        }
+
+        if (st.opacity > 0.01) {
           let strokeColor = '#06b6d4';
           let fillColor = 'rgba(6, 182, 212, 0.2)';
-          if (count > 3) {
+          if (st.count > 3) {
             strokeColor = '#ef4444';
             fillColor = 'rgba(239, 68, 68, 0.28)';
-          } else if (count > 1) {
+          } else if (st.count > 1) {
             strokeColor = '#865db1';
             fillColor = 'rgba(134, 93, 177, 0.22)';
           }
 
-          drawChannelBell(r, 0.22, bestAp.rssi, strokeColor, fillColor, count > 3 ? 1.8 : 1);
-        });
-
-        // Top Pinned Marker for Strongest AP
-        const sortedAps = [...bandAps].sort((a, b) => b.rssi - a.rssi);
-        if (sortedAps[0]) {
-          const p1 = sortedAps[0];
-          const p1x = padLeft + plotW * chRatio(p1.channel);
-          const p1y = padTop + plotH * (1 - (p1.rssi - -95) / 65);
-
-          ctx.fillStyle = '#1e053e';
-          ctx.strokeStyle = '#06b6d4';
-          ctx.lineWidth = 1.2 * dpr;
-          ctx.beginPath();
-          ctx.roundRect(p1x - 70 * dpr, p1y - 48 * dpr, 140 * dpr, 42 * dpr, 4 * dpr);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = '#06b6d4';
-          ctx.font = `bold ${8 * dpr}px 'JetBrains Mono', monospace`;
-          ctx.textAlign = 'left';
-          ctx.fillText(`● ${p1.ssid}`, p1x - 64 * dpr, p1y - 34 * dpr);
-          ctx.fillStyle = '#9c80bd';
-          ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
-          ctx.fillText(`Canal: Ch ${p1.channel} (20 MHz)  Potencia: ${p1.rssi} dBm`, p1x - 64 * dpr, p1y - 23 * dpr);
-          ctx.fillText(`BSSID: ${p1.bssid || 'N/A'}`, p1x - 64 * dpr, p1y - 12 * dpr);
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, Math.min(1, st.opacity));
+          drawChannelBell(st.centerRatio, st.widthRatio, st.currentDbm, strokeColor, fillColor, st.count > 3 ? 1.8 : 1);
+          ctx.restore();
         }
+      });
 
-        // X-axis ticks
+      toDelete.forEach((k) => smoothedChannelsRef.current.delete(k));
+
+      // 3. X-Axis Ticks & Labels according to selected band
+      if (currentBand === '2.4ghz') {
         for (let ch = 1; ch <= 13; ch++) {
-          const x = padLeft + plotW * chRatio(ch);
+          const x = padLeft + plotW * chRatio24(ch);
           const isStandard = ch === 1 || ch === 6 || ch === 11;
           ctx.fillStyle = isStandard ? '#ffffff' : '#9c80bd';
           ctx.font = `${isStandard ? 'bold ' : ''}${7.5 * dpr}px 'JetBrains Mono', monospace`;
@@ -253,55 +335,6 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
           }
         }
       } else {
-        // 5 GHz Band
-        const fiveGChannels = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165];
-        const chRatio5 = (ch: number) => {
-          const idx = fiveGChannels.indexOf(ch);
-          if (idx === -1) return 0.5;
-          return 0.08 + (idx / (fiveGChannels.length - 1)) * 0.84;
-        };
-
-        channelMap.forEach((aps, ch) => {
-          const bestAp = aps.reduce((p, c) => (c.rssi > p.rssi ? c : p), aps[0]);
-          const r = chRatio5(ch);
-          const count = aps.length;
-
-          let strokeColor = '#06b6d4';
-          let fillColor = 'rgba(6, 182, 212, 0.2)';
-          if (count > 2) {
-            strokeColor = '#ef4444';
-            fillColor = 'rgba(239, 68, 68, 0.25)';
-          }
-
-          drawChannelBell(r, 0.12, bestAp.rssi, strokeColor, fillColor);
-        });
-
-        // Top Pinned Marker for Strongest 5 GHz AP
-        const sorted5G = [...bandAps].sort((a, b) => b.rssi - a.rssi);
-        if (sorted5G[0]) {
-          const p1 = sorted5G[0];
-          const p1x = padLeft + plotW * chRatio5(p1.channel);
-          const p1y = padTop + plotH * (1 - (p1.rssi - -95) / 65);
-
-          ctx.fillStyle = '#1e053e';
-          ctx.strokeStyle = '#06b6d4';
-          ctx.lineWidth = 1.2 * dpr;
-          ctx.beginPath();
-          ctx.roundRect(p1x - 70 * dpr, p1y - 48 * dpr, 140 * dpr, 42 * dpr, 4 * dpr);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = '#06b6d4';
-          ctx.font = `bold ${8 * dpr}px 'JetBrains Mono', monospace`;
-          ctx.textAlign = 'left';
-          ctx.fillText(`● ${p1.ssid}`, p1x - 64 * dpr, p1y - 34 * dpr);
-          ctx.fillStyle = '#9c80bd';
-          ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
-          ctx.fillText(`Canal: Ch ${p1.channel} (5 GHz)  Potencia: ${p1.rssi} dBm`, p1x - 64 * dpr, p1y - 23 * dpr);
-          ctx.fillText(`BSSID: ${p1.bssid || 'N/A'}`, p1x - 64 * dpr, p1y - 12 * dpr);
-        }
-
-        // Ticks for selected representative 5 GHz channels
         [36, 44, 52, 100, 116, 132, 149, 157, 165].forEach((ch) => {
           const x = padLeft + plotW * chRatio5(ch);
           ctx.fillStyle = '#ffffff';
@@ -311,12 +344,67 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
         });
       }
 
-      if (bandAps.length === 0) {
+      // 4. Smooth Pinned Marker for Strongest AP
+      const sortedAps = [...currentBandAps].sort((a, b) => b.rssi - a.rssi);
+      const p1 = sortedAps[0];
+      const m = markerRef.current;
+
+      if (p1) {
+        const ratio = currentBand === '2.4ghz' ? chRatio24(p1.channel) : chRatio5(p1.channel);
+        const targetX = padLeft + plotW * ratio;
+        const norm = Math.max(0, Math.min(1, (p1.rssi - -95) / 65));
+        const targetY = padTop + plotH * (1 - norm);
+
+        if (m.currentX === 0 || m.opacity < 0.05) {
+          m.currentX = targetX;
+          m.currentY = targetY;
+          m.rssi = p1.rssi;
+        } else {
+          m.currentX += (targetX - m.currentX) * 0.08;
+          m.currentY += (targetY - m.currentY) * 0.08;
+          m.rssi += (p1.rssi - m.rssi) * 0.08;
+        }
+        m.opacity += (1 - m.opacity) * 0.08;
+        m.ssid = p1.ssid;
+        m.channel = p1.channel;
+        m.bssid = p1.bssid || 'N/A';
+        m.band = currentBand === '2.4ghz' ? '20 MHz' : '5 GHz';
+      } else {
+        m.opacity += (0 - m.opacity) * 0.08;
+      }
+
+      if (m.opacity > 0.02) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, m.opacity));
+        const p1x = m.currentX;
+        const p1y = m.currentY;
+
+        ctx.fillStyle = '#1e053e';
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 1.2 * dpr;
+        ctx.beginPath();
+        ctx.roundRect(p1x - 70 * dpr, p1y - 48 * dpr, 140 * dpr, 42 * dpr, 4 * dpr);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#06b6d4';
+        ctx.font = `bold ${8 * dpr}px 'JetBrains Mono', monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillText(`● ${m.ssid}`, p1x - 64 * dpr, p1y - 34 * dpr);
+        ctx.fillStyle = '#9c80bd';
+        ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
+        ctx.fillText(`Canal: Ch ${m.channel} (${m.band})  Potencia: ${Math.round(m.rssi)} dBm`, p1x - 64 * dpr, p1y - 23 * dpr);
+        ctx.fillText(`BSSID: ${m.bssid}`, p1x - 64 * dpr, p1y - 12 * dpr);
+        ctx.restore();
+      }
+
+      // Empty State Text
+      if (currentBandAps.length === 0 && smoothedChannelsRef.current.size === 0) {
         ctx.fillStyle = '#9c80bd';
         ctx.font = `${9 * dpr}px 'JetBrains Mono', monospace`;
         ctx.textAlign = 'center';
         ctx.fillText(
-          `Esperando transmisiones RF en banda ${selectedBand === '2.4ghz' ? '2.4 GHz' : '5 GHz'}...`,
+          `Esperando transmisiones RF en banda ${currentBand === '2.4ghz' ? '2.4 GHz' : '5 GHz'}...`,
           padLeft + plotW / 2,
           padTop + plotH / 2
         );
@@ -327,7 +415,7 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [selectedBand, channelWidth, scaleMode, bandAps, channelMap]);
+  }, []);
 
   return (
     <div className="channel-analysis-container">

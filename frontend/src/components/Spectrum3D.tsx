@@ -9,13 +9,15 @@ interface Spectrum3DProps {
 
 export const Spectrum3D: React.FC<Spectrum3DProps> = ({ accessPoints }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const accessPointsRef = useRef(accessPoints);
+  accessPointsRef.current = accessPoints;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth || 600;
+    const height = container.clientHeight || 400;
 
     // 1. Scene, Camera, Renderer
     const scene = new THREE.Scene();
@@ -76,48 +78,27 @@ export const Spectrum3D: React.FC<Spectrum3DProps> = ({ accessPoints }) => {
     sweepMesh.position.y = 0.08;
     scene.add(sweepMesh);
 
-    // 5. AP 3D Towers
+    // 5. AP 3D Towers Group & State Map
     const towersGroup = new THREE.Group();
     scene.add(towersGroup);
 
-    const createTower = (ap: ScannedAP, index: number) => {
-      // Normalize RSSI (-100 dBm -> height 1, -30 dBm -> height 22)
-      const clamped = Math.max(-100, Math.min(-30, ap.rssi));
-      const towerHeight = Math.max(1.5, ((clamped + 100) / 70) * 22);
+    const baseCylinderGeo = new THREE.CylinderGeometry(0.85, 1.1, 1, 16);
+    const baseOrbGeo = new THREE.SphereGeometry(0.55, 16, 16);
 
-      // Positioning along channel axis
-      const is24 = ap.channel <= 14;
-      const x = is24 ? (ap.channel - 7.5) * 3.4 : (index - accessPoints.length / 2) * 2.8;
-      const z = is24 ? -6 : 10;
+    interface TowerState {
+      mesh: THREE.Mesh;
+      orb: THREE.Mesh;
+      material: THREE.MeshStandardMaterial;
+      orbMaterial: THREE.MeshBasicMaterial;
+      currentHeight: number;
+      targetHeight: number;
+      targetX: number;
+      targetZ: number;
+      opacity: number;
+      targetOpacity: number;
+    }
 
-      const isStandardCh = ap.channel === 1 || ap.channel === 6 || ap.channel === 11;
-      const towerColor = isStandardCh ? 0x865db1 : 0x583383;
-      const emissiveColor = isStandardCh ? 0x6f489a : 0x401d6b;
-
-      const towerGeo = new THREE.CylinderGeometry(0.85, 1.1, towerHeight, 16);
-      const towerMat = new THREE.MeshStandardMaterial({
-        color: towerColor,
-        roughness: 0.2,
-        metalness: 0.85,
-        emissive: emissiveColor,
-        emissiveIntensity: 0.35,
-      });
-
-      const mesh = new THREE.Mesh(towerGeo, towerMat);
-      mesh.position.set(x, towerHeight / 2, z);
-      towersGroup.add(mesh);
-
-      // Top glowing beacon orb
-      const orbGeo = new THREE.SphereGeometry(0.55, 16, 16);
-      const orbMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const orb = new THREE.Mesh(orbGeo, orbMat);
-      orb.position.set(x, towerHeight + 0.55, z);
-      towersGroup.add(orb);
-    };
-
-    accessPoints.forEach((ap, idx) => {
-      createTower(ap, idx);
-    });
+    const towersMap = new Map<string, TowerState>();
 
     // 6. Ambient RF Floating Particle Wave Field
     const particleCount = 200;
@@ -180,7 +161,7 @@ export const Spectrum3D: React.FC<Spectrum3DProps> = ({ accessPoints }) => {
     window.addEventListener('mouseup', onMouseUp);
     domElement.addEventListener('wheel', onWheel, { passive: false });
 
-    // 8. Animation Loop
+    // 8. Continuous Smooth Animation Loop (60 FPS)
     let animId: number;
     let clock = new THREE.Clock();
 
@@ -194,11 +175,108 @@ export const Spectrum3D: React.FC<Spectrum3DProps> = ({ accessPoints }) => {
       // Soft particles drift
       particles.rotation.y = elapsedTime * 0.04;
 
-      // Update camera position from orbit coordinates
+      // Smooth camera orbit
       camera.position.x = distance * Math.sin(sphericalPhi) * Math.sin(sphericalTheta);
       camera.position.y = distance * Math.cos(sphericalPhi);
       camera.position.z = distance * Math.sin(sphericalPhi) * Math.cos(sphericalTheta);
       camera.lookAt(0, 4, 0);
+
+      // --- Smooth Tower LERP Update ---
+      const aps = accessPointsRef.current;
+      const activeKeys = new Set<string>();
+
+      aps.forEach((ap, idx) => {
+        const key = ap.bssid || `${ap.ssid}_${ap.channel}`;
+        activeKeys.add(key);
+
+        const clamped = Math.max(-100, Math.min(-30, ap.rssi));
+        const targetHeight = Math.max(1.5, ((clamped + 100) / 70) * 22);
+
+        const is24 = ap.channel <= 14;
+        const targetX = is24 ? (ap.channel - 7.5) * 3.4 : (idx - aps.length / 2) * 2.8;
+        const targetZ = is24 ? -6 : 10;
+
+        let tower = towersMap.get(key);
+        if (!tower) {
+          const isStandardCh = ap.channel === 1 || ap.channel === 6 || ap.channel === 11;
+          const towerColor = isStandardCh ? 0x865db1 : 0x583383;
+          const emissiveColor = isStandardCh ? 0x6f489a : 0x401d6b;
+
+          const towerMat = new THREE.MeshStandardMaterial({
+            color: towerColor,
+            roughness: 0.2,
+            metalness: 0.85,
+            emissive: emissiveColor,
+            emissiveIntensity: 0.35,
+            transparent: true,
+            opacity: 0,
+          });
+
+          const mesh = new THREE.Mesh(baseCylinderGeo, towerMat);
+          mesh.position.set(targetX, 0.5, targetZ);
+          mesh.scale.set(1, 1, 1);
+          towersGroup.add(mesh);
+
+          const orbMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+          const orb = new THREE.Mesh(baseOrbGeo, orbMat);
+          orb.position.set(targetX, 1.55, targetZ);
+          towersGroup.add(orb);
+
+          tower = {
+            mesh,
+            orb,
+            material: towerMat,
+            orbMaterial: orbMat,
+            currentHeight: 1,
+            targetHeight,
+            targetX,
+            targetZ,
+            opacity: 0,
+            targetOpacity: 1,
+          };
+          towersMap.set(key, tower);
+        } else {
+          tower.targetHeight = targetHeight;
+          tower.targetX = targetX;
+          tower.targetZ = targetZ;
+          tower.targetOpacity = 1;
+        }
+      });
+
+      // Towers that disappeared sink down and fade out
+      towersMap.forEach((tower, key) => {
+        if (!activeKeys.has(key)) {
+          tower.targetHeight = 0.5;
+          tower.targetOpacity = 0;
+        }
+      });
+
+      // Interpolate all towers
+      const toDelete: string[] = [];
+      towersMap.forEach((tower, key) => {
+        tower.currentHeight += (tower.targetHeight - tower.currentHeight) * 0.08;
+        tower.opacity += (tower.targetOpacity - tower.opacity) * 0.08;
+
+        tower.mesh.scale.set(1, tower.currentHeight, 1);
+        tower.mesh.position.y = tower.currentHeight / 2;
+        tower.mesh.position.x += (tower.targetX - tower.mesh.position.x) * 0.08;
+        tower.mesh.position.z += (tower.targetZ - tower.mesh.position.z) * 0.08;
+
+        tower.orb.position.set(tower.mesh.position.x, tower.currentHeight + 0.55, tower.mesh.position.z);
+
+        tower.material.opacity = Math.max(0, Math.min(1, tower.opacity));
+        tower.orbMaterial.opacity = Math.max(0, Math.min(1, tower.opacity));
+
+        if (tower.opacity < 0.01 && tower.targetOpacity === 0) {
+          towersGroup.remove(tower.mesh);
+          towersGroup.remove(tower.orb);
+          tower.material.dispose();
+          tower.orbMaterial.dispose();
+          toDelete.push(key);
+        }
+      });
+
+      toDelete.forEach((k) => towersMap.delete(k));
 
       renderer.render(scene, camera);
     };
@@ -227,9 +305,19 @@ export const Spectrum3D: React.FC<Spectrum3DProps> = ({ accessPoints }) => {
       if (domElement.parentElement) {
         domElement.parentElement.removeChild(domElement);
       }
+      towersMap.forEach((t) => {
+        t.material.dispose();
+        t.orbMaterial.dispose();
+      });
+      baseCylinderGeo.dispose();
+      baseOrbGeo.dispose();
+      ringGeo1.dispose();
+      ringGeo2.dispose();
+      sweepGeo.dispose();
+      particleGeo.dispose();
       renderer.dispose();
     };
-  }, [accessPoints]);
+  }, []);
 
   return (
     <div className="three-container">

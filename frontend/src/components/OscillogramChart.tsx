@@ -17,6 +17,9 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const smoothRssi1Ref = useRef<number>(-90);
+  const smoothRssi2Ref = useRef<number>(-90);
+
   useEffect(() => {
     if (viewMode !== 'live' && viewMode !== 'history') return;
 
@@ -118,9 +121,15 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
         ctx.fillText(tick, x, h - padBottom + 16 * dpr);
       });
 
-      // Draw Oscillogram Waves from Real Hardware Scanned APs
+      // Draw Oscillogram Waves with Smooth LERP Interpolation
       const primaryAp = accessPoints[0] || null;
       const secondaryAp = accessPoints[1] || null;
+
+      const target1 = primaryAp ? primaryAp.rssi : -92;
+      smoothRssi1Ref.current += (target1 - smoothRssi1Ref.current) * 0.06;
+
+      const target2 = secondaryAp ? secondaryAp.rssi : -92;
+      smoothRssi2Ref.current += (target2 - smoothRssi2Ref.current) * 0.06;
 
       const drawWave = (color: string, baseRssi: number, freq: number, phaseShift: number) => {
         ctx.beginPath();
@@ -152,12 +161,12 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
       };
 
       if (secondaryAp) {
-        // Draw secondary curve (Purple #865db1)
-        drawWave('#865db1', secondaryAp.rssi, 6, 2.5);
+        // Draw secondary curve with smoothed RSSI (Purple #865db1)
+        drawWave('#865db1', smoothRssi2Ref.current, 6, 2.5);
 
         // Floating Marker Tooltip for Secondary
         const pin2X = padLeft + plotW * 0.72;
-        const pin2Y = dbmToY(secondaryAp.rssi);
+        const pin2Y = dbmToY(smoothRssi2Ref.current);
         ctx.fillStyle = '#1e053e';
         ctx.strokeStyle = '#865db1';
         ctx.lineWidth = 1.5 * dpr;
@@ -169,16 +178,16 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
         ctx.fillStyle = '#865db1';
         ctx.font = `bold ${8.5 * dpr}px 'JetBrains Mono', monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(`${secondaryAp.ssid}: ${secondaryAp.rssi} dBm`, pin2X, pin2Y - 13 * dpr);
+        ctx.fillText(`${secondaryAp.ssid}: ${Math.round(smoothRssi2Ref.current)} dBm`, pin2X, pin2Y - 13 * dpr);
       }
 
       if (primaryAp) {
-        // Draw primary curve (Cyan #38bdf8)
-        drawWave('#38bdf8', primaryAp.rssi, 4.5, 0);
+        // Draw primary curve with smoothed RSSI (Cyan #38bdf8)
+        drawWave('#38bdf8', smoothRssi1Ref.current, 4.5, 0);
 
         // Floating Marker Tooltip for Primary
         const pin1X = padLeft + plotW * 0.22;
-        const pin1Y = dbmToY(primaryAp.rssi);
+        const pin1Y = dbmToY(smoothRssi1Ref.current);
         ctx.fillStyle = '#1e053e';
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 1.5 * dpr;
@@ -190,7 +199,7 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
         ctx.fillStyle = '#38bdf8';
         ctx.font = `bold ${8.5 * dpr}px 'JetBrains Mono', monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(`${primaryAp.ssid}: ${primaryAp.rssi} dBm`, pin1X, pin1Y - 13 * dpr);
+        ctx.fillText(`${primaryAp.ssid}: ${Math.round(smoothRssi1Ref.current)} dBm`, pin1X, pin1Y - 13 * dpr);
       } else {
         // Baseline noise curve when starting or scanning
         drawWave('#6f489a', -92, 3, 0);

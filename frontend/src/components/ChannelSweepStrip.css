@@ -86,7 +86,7 @@
   justify-content: space-between;
   min-height: 80px;
   position: relative;
-  transition: all 0.15s ease;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .channel-cell:hover {
@@ -112,6 +112,7 @@
   padding: 1px 5px;
   border-radius: 3px;
   letter-spacing: 0.05em;
+  transition: opacity 0.3s ease;
 }
 
 .channel-cell-top {
@@ -140,6 +141,7 @@
   align-items: center;
   gap: 1px;
   margin: 4px 0;
+  transition: color 0.3s ease;
 }
 
 .cell-dbm-txt {
@@ -147,6 +149,7 @@
   font-weight: 700;
   font-family: var(--font-mono);
   color: #38bdf8;
+  transition: color 0.3s ease;
 }
 
 .cell-ap-count {
@@ -160,6 +163,7 @@
   height: 5px;
   border-radius: 2px;
   margin-top: 4px;
+  transition: background-color 0.5s ease;
 }
 
 @media (max-width: 1100px) {

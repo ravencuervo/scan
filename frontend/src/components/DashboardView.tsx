@@ -30,7 +30,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const optimal24 = recommendations?.optimal_channel_24 || (count24 > 0 ? 1 : 6);
   const optimal5 = recommendations?.optimal_channel_5 || (count5 > 0 ? 36 : 149);
 
-  // Render Spectral Occupancy Bell Curves (FFT RF) using REAL Access Points
+  // Smooth animation interpolation state refs
+  const smoothedCurvesRef = useRef<Map<string, {
+    bssid: string;
+    ssid: string;
+    currentPeakDbm: number;
+    targetPeakDbm: number;
+    currentCx: number;
+    targetCx: number;
+    currentWidth: number;
+    targetWidth: number;
+    color: string;
+    opacity: number;
+    targetOpacity: number;
+  }>>(new Map());
+
+  const smoothedLineRssiRef = useRef<Map<string, number>>(new Map());
+
+  // Render Spectral Occupancy Bell Curves (FFT RF) using REAL Access Points with Smooth LERP
   useEffect(() => {
     const canvas = fftCanvasRef.current;
     if (!canvas) return;
@@ -133,7 +150,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           const t = i / steps; // 0 to 1
           const x = cx - bw / 2 + bw * t;
           const bell = Math.sin(t * Math.PI);
-          const dynamicJitter = Math.sin(phase + i * 0.4) * (1.5 * dpr);
+          const dynamicJitter = Math.sin(phase + i * 0.4) * (1.2 * dpr);
           const y = baseY - (baseY - peakY) * Math.pow(bell, 1.4) + dynamicJitter;
 
           if (i === 0) ctx.moveTo(x, baseY);
@@ -162,11 +179,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         ctx.fillText(label, cx, peakY - 6 * dpr);
       };
 
-      // Plot REAL 2.4 GHz access points
+      // 1. Prepare target curves based on current accessPoints and bandSelection
+      const activeTargets = new Map<string, { cx: number; width: number; peakDbm: number; color: string; label: string }>();
+
       if (bandSelection === 'both' || bandSelection === '2.4ghz') {
-        const aps24 = accessPoints.filter((a) => a.channel <= 14);
-        aps24.slice(0, 8).forEach((ap) => {
-          // Channel 1 to 14 mapped across 0.08 - 0.44
+        const aps24 = accessPoints.filter((a) => a.channel <= 14).slice(0, 8);
+        aps24.forEach((ap) => {
           const normCh = (ap.channel - 1) / 13;
           const cxRatio = 0.08 + normCh * 0.36;
           const wRatio = (ap.channel_width || 20) > 20 ? 0.16 : 0.10;
@@ -174,26 +192,90 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           if (ap.channel === 6) col = '#f43f5e';
           else if (ap.channel === 1) col = '#10b981';
           else if (ap.channel === 11) col = '#a855f7';
-          drawParabola(cxRatio, wRatio, ap.rssi, col, `${ap.ssid.slice(0, 14)} (${ap.rssi}dBm)`);
+          activeTargets.set(ap.bssid, {
+            cx: cxRatio,
+            width: wRatio,
+            peakDbm: ap.rssi,
+            color: col,
+            label: `${ap.ssid.slice(0, 14)} (${ap.rssi}dBm)`,
+          });
         });
       }
 
-      // Plot REAL 5 GHz access points
       if (bandSelection === 'both' || bandSelection === '5ghz') {
-        const aps5 = accessPoints.filter((a) => a.channel >= 36);
-        aps5.slice(0, 8).forEach((ap) => {
-          // Channel 36 to 165 mapped across 0.52 - 0.94
+        const aps5 = accessPoints.filter((a) => a.channel >= 36).slice(0, 8);
+        aps5.forEach((ap) => {
           let normCh = 0;
           if (ap.channel <= 64) {
-            normCh = (ap.channel - 36) / (64 - 36) * 0.45;
+            normCh = ((ap.channel - 36) / (64 - 36)) * 0.45;
           } else {
             normCh = 0.55 + ((ap.channel - 149) / (165 - 149)) * 0.45;
           }
           const cxRatio = 0.52 + normCh * 0.40;
-          const wRatio = (ap.channel_width || 20) >= 80 ? 0.20 : ((ap.channel_width || 20) >= 40 ? 0.14 : 0.09);
-          drawParabola(cxRatio, wRatio, ap.rssi, '#865db1', `${ap.ssid.slice(0, 14)} (Ch ${ap.channel})`);
+          const wRatio = (ap.channel_width || 20) >= 80 ? 0.20 : (ap.channel_width || 20) >= 40 ? 0.14 : 0.09;
+          activeTargets.set(ap.bssid, {
+            cx: cxRatio,
+            width: wRatio,
+            peakDbm: ap.rssi,
+            color: '#865db1',
+            label: `${ap.ssid.slice(0, 14)} (Ch ${ap.channel})`,
+          });
         });
       }
+
+      // 2. Synchronize smoothed curves with active targets
+      activeTargets.forEach((target, bssid) => {
+        let existing = smoothedCurvesRef.current.get(bssid);
+        if (!existing) {
+          existing = {
+            bssid,
+            ssid: target.label,
+            currentPeakDbm: -95,
+            targetPeakDbm: target.peakDbm,
+            currentCx: target.cx,
+            targetCx: target.cx,
+            currentWidth: target.width,
+            targetWidth: target.width,
+            color: target.color,
+            opacity: 0,
+            targetOpacity: 1,
+          };
+          smoothedCurvesRef.current.set(bssid, existing);
+        } else {
+          existing.targetPeakDbm = target.peakDbm;
+          existing.targetCx = target.cx;
+          existing.targetWidth = target.width;
+          existing.color = target.color;
+          existing.ssid = target.label;
+          existing.targetOpacity = 1;
+        }
+      });
+
+      // Mark removed curves to fade out
+      smoothedCurvesRef.current.forEach((curve, bssid) => {
+        if (!activeTargets.has(bssid)) {
+          curve.targetOpacity = 0;
+          curve.targetPeakDbm = -95;
+        }
+      });
+
+      // 3. Update and draw all curves with smooth LERP (exponential decay factor 0.08)
+      smoothedCurvesRef.current.forEach((curve, bssid) => {
+        curve.currentPeakDbm += (curve.targetPeakDbm - curve.currentPeakDbm) * 0.08;
+        curve.currentCx += (curve.targetCx - curve.currentCx) * 0.08;
+        curve.currentWidth += (curve.targetWidth - curve.currentWidth) * 0.08;
+        curve.opacity += (curve.targetOpacity - curve.opacity) * 0.08;
+
+        if (curve.opacity <= 0.01 && curve.targetOpacity === 0) {
+          smoothedCurvesRef.current.delete(bssid);
+          return;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, curve.opacity));
+        drawParabola(curve.currentCx, curve.currentWidth, curve.currentPeakDbm, curve.color, curve.ssid);
+        ctx.restore();
+      });
 
       // Channel X-axis ticks
       const channels = [
@@ -221,7 +303,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [accessPoints, bandSelection]);
 
-  // Render RSSI Temporal Line Chart using TOP REAL access points
+  // Render RSSI Temporal Line Chart using TOP REAL access points with Smooth LERP
   const topRealAps = [...accessPoints].sort((a, b) => b.rssi - a.rssi).slice(0, 3);
   const chartColors = ['#06b6d4', '#a855f7', '#f43f5e'];
 
@@ -289,8 +371,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         ctx.stroke();
       };
 
+      // Smooth LERP for RSSI lines to prevent jarring jumps
       topRealAps.forEach((ap, idx) => {
-        drawTrendLine(ap.rssi, chartColors[idx % chartColors.length], 1.5 + idx * 0.5, idx * 1.5);
+        const current = smoothedLineRssiRef.current.get(ap.bssid) ?? ap.rssi;
+        const next = current + (ap.rssi - current) * 0.07;
+        smoothedLineRssiRef.current.set(ap.bssid, next);
+        drawTrendLine(next, chartColors[idx % chartColors.length], 1.5 + idx * 0.5, idx * 1.5);
       });
 
       animId = requestAnimationFrame(render);
