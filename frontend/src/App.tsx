@@ -13,9 +13,10 @@ import { DashboardView } from './components/DashboardView';
 import { ChannelAnalysisView } from './components/ChannelAnalysisView';
 import { HistoryView } from './components/HistoryView';
 import { ReportsView } from './components/ReportsView';
-import { KpiCards } from './components/KpiCards';
-import { NetworksTable } from './components/NetworksTable';
 import { NewSessionModal } from './components/NewSessionModal';
+import { ConfigView } from './components/ConfigView';
+import { SdrDiagnosticView } from './components/SdrDiagnosticView';
+import { DocsView } from './components/DocsView';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -231,6 +232,7 @@ export const App: React.FC = () => {
             isLive={isLive}
             activeTab={activeNav}
             onLogout={handleLogout}
+            onNavigate={setActiveNav}
           />
 
           <div className="dashboard-content-body">
@@ -295,13 +297,27 @@ export const App: React.FC = () => {
               />
             )}
 
-            {/* 6. Configuración / Diagnóstico SDR / Documentación */}
-            {(activeNav === 'config' || activeNav === 'sdr' || activeNav === 'docs') && (
-              <div className="secondary-tab-view">
-                <KpiCards metrics={metrics} recommendations={recommendations} />
-                <NetworksTable accessPoints={accessPoints} />
-              </div>
+            {/* 6. Configuración General del Sistema */}
+            {activeNav === 'config' && (
+              <ConfigView
+                adapters={adapters}
+                selectedAdapter={selectedAdapter}
+                onSelectAdapter={handleSelectAdapter}
+              />
             )}
+
+            {/* 7. Diagnóstico de Hardware SDR / PCIe / USB */}
+            {activeNav === 'sdr' && (
+              <SdrDiagnosticView
+                adapters={adapters}
+                selectedAdapter={selectedAdapter}
+                accessPoints={accessPoints}
+                onTriggerScan={() => handleSelectAdapter(selectedAdapter)}
+              />
+            )}
+
+            {/* 8. Guía de Ingeniería RF y Documentación */}
+            {activeNav === 'docs' && <DocsView />}
           </div>
         </main>
       </div>

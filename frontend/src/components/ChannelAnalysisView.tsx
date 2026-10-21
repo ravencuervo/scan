@@ -10,6 +10,8 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
   const [selectedBand, setSelectedBand] = useState<'2.4ghz' | '5ghz'>('2.4ghz');
   const [channelWidth, setChannelWidth] = useState<'all' | '20' | '40' | '80' | '160'>('20');
   const [scaleMode, setScaleMode] = useState<'dbm' | 'mw'>('dbm');
+  const [appliedMessage, setAppliedMessage] = useState<string | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -623,8 +625,53 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
               <div>Estado del Transceptor: <strong style={{ color: 'var(--color6)' }}>Hardware Sincronizado</strong></div>
             </div>
 
-            <button className="btn-ca-apply">
-              <i className="bi bi-gear-fill" style={{ color: 'inherit' }}></i> APLICAR CONFIGURACIÓN AUTOMÁTICA
+            {appliedMessage && (
+              <div
+                style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  border: '1px solid #10b981',
+                  color: '#34d399',
+                  fontSize: '0.72rem',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 600,
+                }}
+              >
+                <i className="bi bi-check-circle-fill"></i>
+                <span>{appliedMessage}</span>
+              </div>
+            )}
+
+            <button
+              className="btn-ca-apply"
+              disabled={isApplying}
+              onClick={async () => {
+                setIsApplying(true);
+                try {
+                  const res = await fetch('/api/channels/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      target_channel: suggestedChannel,
+                      band: selectedBand,
+                    }),
+                  });
+                  if (res.ok) {
+                    setAppliedMessage(`Canal Ch ${suggestedChannel} (${selectedBand === '2.4ghz' ? '2.4 GHz' : '5 GHz'}) configurado en el transceptor.`);
+                    setTimeout(() => setAppliedMessage(null), 4000);
+                  }
+                } catch (err) {
+                  console.error('Error applying channel:', err);
+                } finally {
+                  setIsApplying(false);
+                }
+              }}
+            >
+              <i className="bi bi-gear-fill" style={{ color: 'inherit' }}></i>
+              {isApplying ? 'APLICANDO AL HARDWARE...' : `APLICAR CANAL ${suggestedChannel} AUTOMÁTICAMENTE`}
             </button>
           </div>
         </div>

@@ -1,0 +1,123 @@
+/* ==========================================================================
+   AeroScan Technical Documentation View Styles
+   ========================================================================== */
+
+.docs-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.docs-header-card {
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.docs-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.docs-header-title i {
+  font-size: 1.6rem;
+  color: var(--color6);
+}
+
+.docs-header-title h2 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color6);
+  margin: 0;
+}
+
+.docs-header-title p {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 2px 0 0 0;
+}
+
+.docs-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.docs-card {
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.docs-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(88, 51, 131, 0.3);
+  padding-bottom: 10px;
+}
+
+.docs-card-header i {
+  font-size: 1.2rem;
+  color: #38bdf8;
+}
+
+.docs-card-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color6);
+}
+
+.docs-card-body {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.docs-card-body p {
+  margin: 0 0 8px 0;
+}
+
+.docs-code-box {
+  background-color: var(--color1);
+  border: 1px solid var(--color3);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #38bdf8;
+  margin: 6px 0;
+  overflow-x: auto;
+}
+
+.docs-pill-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: rgba(6, 182, 212, 0.15);
+  border: 1px solid #06b6d4;
+  color: #38bdf8;
+  margin-right: 6px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 900px) {
+  .docs-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}

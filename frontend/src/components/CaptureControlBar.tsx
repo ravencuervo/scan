@@ -21,7 +21,7 @@ export const CaptureControlBar: React.FC<CaptureControlBarProps> = ({
   selectedAdapter = 'ALL',
   onSelectAdapter,
   onToggleCapture,
-  onExportReports,
+  onExportReports: _onExportReports,
 }) => {
   const [band24, setBand24] = useState(true);
   const [band5, setBand5] = useState(true);
@@ -188,9 +188,15 @@ export const CaptureControlBar: React.FC<CaptureControlBarProps> = ({
             <span>{isPaused ? 'REANUDAR BUFFER' : 'PAUSAR BUFFER'}</span>
           </button>
 
-          <button className="btn-tactical-export" onClick={onExportReports}>
+          <button
+            className="btn-tactical-export"
+            onClick={() => {
+              window.location.href = '/api/export/pcap';
+            }}
+            title="Descargar volcado estructurado de tramas RF capturadas"
+          >
             <i className="bi bi-box-arrow-down"></i>
-            <span>EXPORTAR VOLCADO PCAP</span>
+            <span>EXPORTAR VOLCADO PCAP / JSON</span>
           </button>
         </div>
       </div>

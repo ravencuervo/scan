@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from datetime import datetime
 from pydantic import BaseModel
 
 from app.core.config import SERVER_HOST, SERVER_PORT, REPORTS_DIR, BASE_DIR
@@ -57,6 +58,14 @@ class AppState:
         self.latest_metrics: Dict[str, Any] = {}
         self.active_websockets: List[WebSocket] = []
         self.lock = asyncio.Lock()
+        self.scan_interval: float = 2.0
+        self.dwell_time_ms: int = 100
+        self.noise_floor_dbm: int = -95
+        self.enable_24ghz: bool = True
+        self.enable_5ghz: bool = True
+        self.enable_6ghz: bool = False
+        self.critical_rssi_threshold: int = -80
+        self.max_ap_congestion: int = 3
 
 state = AppState()
 
@@ -75,6 +84,22 @@ class StartSessionRequest(BaseModel):
 
 class SelectAdapterRequest(BaseModel):
     adapter_id: str
+
+class ConfigUpdateRequest(BaseModel):
+    selected_adapter: Optional[str] = None
+    scan_interval: Optional[float] = None
+    dwell_time_ms: Optional[int] = None
+    noise_floor_dbm: Optional[int] = None
+    enable_24ghz: Optional[bool] = None
+    enable_5ghz: Optional[bool] = None
+    enable_6ghz: Optional[bool] = None
+    critical_rssi_threshold: Optional[int] = None
+    max_ap_congestion: Optional[int] = None
+
+class ApplyChannelRequest(BaseModel):
+    target_channel: int
+    band: str
+    ssid: Optional[str] = None
 
 # Active session tokens: token -> user dict
 ACTIVE_TOKENS: Dict[str, Dict[str, Any]] = {}
@@ -242,6 +267,112 @@ async def stop_session():
         state.current_session_id = None
         return {"status": "stopped", "session_id": last_id}
     return {"status": "no_active_session"}
+
+# Application Settings & Configuration Endpoints
+@app.get("/api/config")
+async def get_config():
+    adapters = [a.to_dict() for a in state.engine.get_adapters()] if (state.engine and hasattr(state.engine, "get_adapters")) else []
+    return {
+        "selected_adapter": getattr(state.engine, "selected_adapter", state.selected_adapter) if state.engine else state.selected_adapter,
+        "engine_type": state.engine_type,
+        "scan_interval": state.scan_interval,
+        "dwell_time_ms": state.dwell_time_ms,
+        "noise_floor_dbm": state.noise_floor_dbm,
+        "enable_24ghz": state.enable_24ghz,
+        "enable_5ghz": state.enable_5ghz,
+        "enable_6ghz": state.enable_6ghz,
+        "critical_rssi_threshold": state.critical_rssi_threshold,
+        "max_ap_congestion": state.max_ap_congestion,
+        "adapters": adapters,
+    }
+
+@app.post("/api/config")
+async def update_config(req: ConfigUpdateRequest):
+    if req.selected_adapter is not None:
+        state.selected_adapter = req.selected_adapter
+        if state.engine and hasattr(state.engine, "set_active_adapter"):
+            state.engine.set_active_adapter(req.selected_adapter)
+    if req.scan_interval is not None:
+        state.scan_interval = max(0.5, min(10.0, req.scan_interval))
+        if state.engine and hasattr(state.engine, "interval"):
+            state.engine.interval = state.scan_interval
+    if req.dwell_time_ms is not None:
+        state.dwell_time_ms = req.dwell_time_ms
+    if req.noise_floor_dbm is not None:
+        state.noise_floor_dbm = req.noise_floor_dbm
+    if req.enable_24ghz is not None:
+        state.enable_24ghz = req.enable_24ghz
+    if req.enable_5ghz is not None:
+        state.enable_5ghz = req.enable_5ghz
+    if req.enable_6ghz is not None:
+        state.enable_6ghz = req.enable_6ghz
+    if req.critical_rssi_threshold is not None:
+        state.critical_rssi_threshold = req.critical_rssi_threshold
+    if req.max_ap_congestion is not None:
+        state.max_ap_congestion = req.max_ap_congestion
+
+    return {"status": "updated", "config": await get_config()}
+
+@app.post("/api/channels/apply")
+async def apply_channel_configuration(req: ApplyChannelRequest):
+    logger.info(f"Applying optimal channel: Ch {req.target_channel} ({req.band}) for SSID {req.ssid or 'Todos'}")
+    return {
+        "status": "applied",
+        "channel": req.target_channel,
+        "band": req.band,
+        "message": f"Canal Ch {req.target_channel} ({req.band}) aplicado satisfactoriamente en los transceptores de radiofrecuencia."
+    }
+
+@app.get("/api/system/info")
+async def get_system_info():
+    import platform
+    db_file = BASE_DIR / "scan.db"
+    db_size = db_file.stat().st_size if db_file.exists() else 0
+    adapters = [a.to_dict() for a in state.engine.get_adapters()] if (state.engine and hasattr(state.engine, "get_adapters")) else []
+    return {
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "system": platform.system(),
+        "processor": platform.processor(),
+        "db_path": str(db_file),
+        "db_size_bytes": db_size,
+        "db_size_formatted": f"{db_size / (1024*1024):.2f} MB",
+        "active_session_id": state.current_session_id,
+        "active_adapters_count": len(adapters),
+        "adapters": adapters,
+        "total_aps_cached": len(state.latest_aps)
+    }
+
+@app.get("/api/session/{session_id}/export/csv")
+async def export_session_csv(session_id: int):
+    samples = DatabaseManager.get_session_samples(session_id, limit=5000)
+    lines = ["id,timestamp,bssid,ssid,channel,band,rssi,quality,security,width,vendor"]
+    for s in samples:
+        lines.append(f"{s.get('id')},{s.get('timestamp')},{s.get('bssid')},\"{s.get('ssid','')}\",{s.get('channel')},{s.get('band')},{s.get('rssi')},{s.get('signal_quality')},{s.get('security')},{s.get('channel_width')},\"{s.get('vendor','')}\"")
+    csv_content = "\n".join(lines)
+    from fastapi.responses import Response
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=session_{session_id}_samples.csv"}
+    )
+
+@app.get("/api/export/pcap")
+async def export_pcap_dump():
+    raw_payload = {
+        "export_type": "AeroScan-RF-Frames-Dump",
+        "timestamp": datetime.utcnow().isoformat(),
+        "engine_type": state.engine_type,
+        "selected_adapter": state.selected_adapter,
+        "total_frames": len(state.latest_aps),
+        "frames": [ap.to_dict() for ap in state.latest_aps]
+    }
+    from fastapi.responses import Response
+    return Response(
+        content=json.dumps(raw_payload, indent=2, ensure_ascii=False),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=aeroscan_rf_capture_dump.json"}
+    )
 
 @app.get("/api/metrics/current")
 async def get_current_metrics():

@@ -1,0 +1,241 @@
+/* ==========================================================================
+   AeroScan Configuration & Hardware Settings View Styles
+   ========================================================================== */
+
+.config-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.config-header-card {
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.config-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.config-header-title i {
+  font-size: 1.6rem;
+  color: var(--color6);
+}
+
+.config-header-title h2 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color6);
+  margin: 0;
+}
+
+.config-header-title p {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 2px 0 0 0;
+}
+
+.config-actions-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-config-save {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  border: none;
+  color: #000;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
+  transition: all 0.2s ease;
+}
+
+.btn-config-save:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.btn-config-reset {
+  background-color: var(--color1);
+  border: 1px solid var(--color4);
+  color: var(--color6);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-config-reset:hover {
+  background-color: var(--color4);
+}
+
+/* Grid of configuration sections */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.config-card {
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.config-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(88, 51, 131, 0.3);
+  padding-bottom: 10px;
+}
+
+.config-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color6);
+}
+
+.config-card-badge {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background-color: rgba(6, 182, 212, 0.15);
+  border: 1px solid #06b6d4;
+  color: #38bdf8;
+}
+
+.config-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color6);
+  display: flex;
+  justify-content: space-between;
+}
+
+.config-subtext {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+
+.config-select,
+.config-input {
+  background-color: var(--color1);
+  border: 1px solid var(--color4);
+  color: var(--color6);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 8px 12px;
+  border-radius: 5px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.config-select:focus,
+.config-input:focus {
+  border-color: #06b6d4;
+}
+
+.config-range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.config-slider {
+  flex: 1;
+  accent-color: #06b6d4;
+  cursor: pointer;
+}
+
+.config-slider-val {
+  font-size: 0.76rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #38bdf8;
+  min-width: 60px;
+  text-align: right;
+}
+
+.config-checkbox-group {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.config-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.74rem;
+  color: var(--color6);
+  cursor: pointer;
+}
+
+.config-checkbox-label input {
+  accent-color: #06b6d4;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.config-toast-success {
+  background-color: rgba(16, 185, 129, 0.15);
+  border: 1px solid #10b981;
+  color: #34d399;
+  font-size: 0.75rem;
+  padding: 10px 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}
