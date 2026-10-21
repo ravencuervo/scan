@@ -68,6 +68,25 @@ def rssi_to_quality(rssi_dbm: int) -> int:
     return int(2 * (rssi_dbm + 100))
 
 @dataclass
+class WirelessAdapter:
+    id: str                   # e.g., "Wi-Fi" or "Wi-Fi 2"
+    name: str                 # Interface display name
+    description: str          # Hardware chipset / card description
+    mac_address: str          # Physical MAC address
+    guid: str = ""            # Windows interface GUID
+    status: str = "disconnected" # "connected", "disconnected", "disabled"
+    connected_ssid: Optional[str] = None
+    connected_bssid: Optional[str] = None
+    current_channel: Optional[int] = None
+    current_band: Optional[str] = None
+    radio_type: Optional[str] = None
+    is_physical: bool = True
+    driver: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+@dataclass
 class ScannedAP:
     bssid: str
     ssid: str
@@ -80,6 +99,7 @@ class ScannedAP:
     channel_width: int = 20
     vendor: str = "Desconocido"
     timestamp: float = 0.0
+    adapter_name: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -90,6 +110,7 @@ class BaseCaptureEngine(abc.ABC):
     def __init__(self, callback: Optional[Callable[[List[ScannedAP]], None]] = None):
         self.callback = callback
         self.is_running = False
+        self.selected_adapter: Optional[str] = "ALL"
 
     @abc.abstractmethod
     def start(self) -> bool:
@@ -110,3 +131,11 @@ class BaseCaptureEngine(abc.ABC):
     def is_hardware_available(self) -> bool:
         """Check if required hardware/OS capability is present."""
         pass
+
+    def get_adapters(self) -> List[WirelessAdapter]:
+        """Return list of detected hardware/virtual wireless adapters."""
+        return []
+
+    def set_active_adapter(self, adapter_id: Optional[str]) -> None:
+        """Select a specific adapter for scanning ('ALL' or adapter name)."""
+        self.selected_adapter = adapter_id or "ALL"

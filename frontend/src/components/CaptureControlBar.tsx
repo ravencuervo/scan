@@ -1,25 +1,32 @@
 import React, { useState, useEffect } from 'react';
+import type { WirelessAdapter } from '../types/spectrum';
 import './CaptureControlBar.css';
 
 interface CaptureControlBarProps {
   engineType: string;
   isCapturing: boolean;
   totalAps: number;
+  adapters?: WirelessAdapter[];
+  selectedAdapter?: string;
+  onSelectAdapter?: (adapterId: string) => void;
   onToggleCapture: () => void;
   onExportReports: () => void;
 }
 
 export const CaptureControlBar: React.FC<CaptureControlBarProps> = ({
-  engineType,
+  engineType: _engineType,
   isCapturing,
   totalAps,
+  adapters = [],
+  selectedAdapter = 'ALL',
+  onSelectAdapter,
   onToggleCapture,
   onExportReports,
 }) => {
   const [band24, setBand24] = useState(true);
   const [band5, setBand5] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
-  const [secondsElapsed, setSecondsElapsed] = useState(878); // 14:38 demo start
+  const [secondsElapsed, setSecondsElapsed] = useState(878);
 
   useEffect(() => {
     if (!isCapturing || isPaused) return;
@@ -38,27 +45,86 @@ export const CaptureControlBar: React.FC<CaptureControlBarProps> = ({
 
   const packetCount = 84219 + (secondsElapsed - 878) * 142 + totalAps * 18;
 
+  const currentActiveAdapter = adapters.find((a) => a.id === selectedAdapter);
+
   return (
     <div className="capture-control-card">
       {/* Top Row: Adapter & Hardware info */}
       <div className="control-row-top">
         <div className="adapter-info-group">
+          {/* Hardware Module Selector */}
           <div className="adapter-item">
-            <span className="adapter-item-label">ADAPTADOR ACTUAL</span>
-            <span className="adapter-item-val">
-              <i className="bi bi-usb-symbol"></i>
-              {engineType === 'windows'
-                ? 'Controlador Nativo Windows (Hardware Interno 802.11)'
-                : 'Alfa Network AWUS036ACH (Chipset Realtek RTL8812AU)'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="adapter-item-label">MÓDULO DE HARDWARE WIFI</span>
+              <span className="adapter-badge-count">
+                {adapters.length === 0
+                  ? 'BUSCANDO MÓDULOS...'
+                  : adapters.length === 1
+                  ? '1 MÓDULO DETECTADO'
+                  : `${adapters.length} MÓDULOS DETECTADOS`}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+              <i className="bi bi-hdd-network" style={{ fontSize: '1.05rem', color: 'inherit' }}></i>
+              <select
+                className="adapter-select-control"
+                value={selectedAdapter}
+                onChange={(e) => onSelectAdapter && onSelectAdapter(e.target.value)}
+                title="Selecciona el módulo WiFi físico a utilizar o todos en paralelo"
+              >
+                {adapters.length > 1 && (
+                  <option value="ALL">
+                    TODOS LOS MÓDULOS ({adapters.length} en Paralelo / Multi-Sensor)
+                  </option>
+                )}
+                {adapters.map((ad) => (
+                  <option key={ad.id} value={ad.id}>
+                    {ad.name} — {ad.description} [{ad.mac_address || 'Sin MAC'}]{' '}
+                    {ad.connected_ssid ? `(Conectado a ${ad.connected_ssid})` : '(Modo Escaneo)'}
+                  </option>
+                ))}
+                {adapters.length === 0 && (
+                  <option value="ALL">Controlador Nativo Windows</option>
+                )}
+              </select>
+            </div>
           </div>
 
+          {/* Module telemetry status */}
           <div className="adapter-item">
-            <span className="adapter-item-label">MODO RF INTERFAZ</span>
-            <span className="adapter-item-val">
-              <span className="adapter-dot-green"></span>
-              Monitor RF Activo (Permisos validados)
-            </span>
+            <span className="adapter-item-label">ESTADO DE HARDWARE</span>
+            <div className="adapter-item-val">
+              {selectedAdapter === 'ALL' ? (
+                <>
+                  <i className="bi bi-check2" style={{ color: 'inherit' }}></i>
+                  <span style={{ fontWeight: 600 }}>Multi-Transceptor Activo:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {adapters.map((a) => a.name).join(' + ') || 'Windows WLAN'}
+                  </span>
+                </>
+              ) : currentActiveAdapter ? (
+                <>
+                  <i className="bi bi-check2" style={{ color: 'inherit' }}></i>
+                  <span>{currentActiveAdapter.description}</span>
+                  {currentActiveAdapter.connected_ssid && (
+                    <span style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                      [Enlace: {currentActiveAdapter.connected_ssid} • Ch {currentActiveAdapter.current_channel || '?'}]
+                    </span>
+                  )}
+                  {currentActiveAdapter.mac_address && (
+                    <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontFamily: 'var(--font-mono)' }}>
+                      ({currentActiveAdapter.mac_address})
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-check2" style={{ color: 'inherit' }}></i>
+                  <span>Captura de Hardware Activa</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -70,7 +136,7 @@ export const CaptureControlBar: React.FC<CaptureControlBarProps> = ({
 
           <div className="session-stat-item">
             <i className="bi bi-layers"></i>
-            <span>PAQUETES: {packetCount.toLocaleString()} frames beacon/probe</span>
+            <span>PAQUETES: {packetCount.toLocaleString()} frames</span>
           </div>
         </div>
       </div>

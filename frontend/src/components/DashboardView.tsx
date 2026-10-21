@@ -11,7 +11,7 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   accessPoints,
   metrics,
-  recommendations: _recommendations,
+  recommendations,
 }) => {
   const [bandSelection, setBandSelection] = useState<'both' | '2.4ghz' | '5ghz'>('both');
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,22 +19,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const fftCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rssiCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Fallback demo APs if none scanned yet
-  const defaultAps = [
-    { ssid: 'AP_CORP_01', bssid: '00:1A:2B:3C:4D:5E', channel: 1, rssi: -38, width: '20 MHz', security: 'WPA3', state: 'ÓPTIMO', stateColor: '#10b981' },
-    { ssid: 'CORP_SECURE_5G', bssid: '00:1A:2B:3C:4D:5F', channel: 36, rssi: -52, width: '80 MHz', security: 'WPA3', state: 'ACTIVO', stateColor: '#10b981' },
-    { ssid: 'AP_BODEGA_CH6', bssid: '44:E5:D7:88:99:A1', channel: 6, rssi: -68, width: '40 MHz', security: 'WPA2', state: 'COLISIÓN', stateColor: '#ef4444' },
-    { ssid: 'Guest_Wi-Fi_Floor1', bssid: '78:9A:18:FC:22:90', channel: 3, rssi: -81, width: '20 MHz', security: 'OPEN', state: 'DÉBIL', stateColor: '#94a3b8' },
-    { ssid: 'DIRECTOR_AP_EXECUTIVE', bssid: 'AC:86:74:10:04:11', channel: 149, rssi: -58, width: '80 MHz', security: 'WPA3-ENT', state: 'ACTIVO', stateColor: '#10b981' },
-  ];
+  // Dynamic real values computed from physical capture
+  const totalCount = accessPoints.length;
+  const count24 = accessPoints.filter((a) => a.channel <= 14).length;
+  const count5 = accessPoints.filter((a) => a.channel >= 36).length;
+  const healthScore = metrics?.overall_health_score ?? (totalCount > 0 ? 82 : 100);
+  const interferenceIdx = Math.max(0, 100 - healthScore);
+  const occupancyVal = (Math.min(95, Math.max(15, count24 * 3.5 + count5 * 2.0))).toFixed(1);
 
-  // Dynamic values
-  const totalCount = accessPoints.length > 0 ? accessPoints.length : 38;
-  const count24 = accessPoints.filter((a) => a.channel <= 14).length || 16;
-  const count5 = accessPoints.filter((a) => a.channel >= 36).length || 22;
-  const occupancyVal = metrics?.overall_health_score ? (100 - metrics.overall_health_score * 0.3).toFixed(1) : '74.2';
+  const optimal24 = recommendations?.optimal_channel_24 || (count24 > 0 ? 1 : 6);
+  const optimal5 = recommendations?.optimal_channel_5 || (count5 > 0 ? 36 : 149);
 
-  // Render Spectral Occupancy Bell Curves (FFT RF)
+  // Render Spectral Occupancy Bell Curves (FFT RF) using REAL Access Points
   useEffect(() => {
     const canvas = fftCanvasRef.current;
     if (!canvas) return;
@@ -73,20 +69,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       dbmLevels.forEach((lvl) => {
         const norm = (lvl - -95) / (-30 - -95);
         const y = padTop + plotH * (1 - norm);
-        ctx.strokeStyle = 'rgba(88, 51, 131, 0.35)';
+
+        ctx.strokeStyle = 'rgba(88, 51, 131, 0.3)';
         ctx.beginPath();
         ctx.moveTo(padLeft, y);
         ctx.lineTo(w - padRight, y);
         ctx.stroke();
 
         ctx.fillStyle = '#9c80bd';
-        ctx.fillText(`${lvl} dBm`, w - 6 * dpr, y + 3 * dpr);
+        ctx.fillText(`${lvl} dBm`, padLeft - 6 * dpr, y + 3 * dpr);
       });
 
-      // Band divider vertical line
-      const divX = padLeft + plotW * 0.48;
-      ctx.strokeStyle = 'rgba(111, 72, 154, 0.45)';
+      // Noise floor line
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
       ctx.setLineDash([4 * dpr, 4 * dpr]);
+      const noiseY = padTop + plotH * (1 - (-90 - -95) / (-30 - -95));
+      ctx.beginPath();
+      ctx.moveTo(padLeft, noiseY);
+      ctx.lineTo(w - padRight, noiseY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ef4444';
+      ctx.textAlign = 'left';
+      ctx.fillText('NOISE FLOOR: -90 dBm', padLeft + 8 * dpr, noiseY - 4 * dpr);
+
+      // Vertical separation between 2.4 GHz and 5 GHz
+      const divX = padLeft + plotW * 0.48;
+      ctx.strokeStyle = 'rgba(88, 51, 131, 0.6)';
+      ctx.setLineDash([2 * dpr, 4 * dpr]);
       ctx.beginPath();
       ctx.moveTo(divX, padTop);
       ctx.lineTo(divX, padTop + plotH);
@@ -109,7 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       ) => {
         const cx = padLeft + plotW * centerXRatio;
         const bw = plotW * widthRatio;
-        const norm = (peakDbm - -95) / (-30 - -95);
+        const norm = Math.max(0, Math.min(1, (peakDbm - -95) / (-30 - -95)));
         const peakY = padTop + plotH * (1 - norm);
         const baseY = padTop + plotH;
 
@@ -117,13 +128,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         if (isDotted) ctx.setLineDash([3 * dpr, 3 * dpr]);
         else ctx.setLineDash([]);
 
-        const steps = 40;
+        const steps = 30;
         for (let i = 0; i <= steps; i++) {
           const t = i / steps; // 0 to 1
           const x = cx - bw / 2 + bw * t;
-          // Inverted parabola (cosine bell curve)
           const bell = Math.sin(t * Math.PI);
-          const dynamicJitter = Math.sin(phase + i * 0.4) * (2 * dpr);
+          const dynamicJitter = Math.sin(phase + i * 0.4) * (1.5 * dpr);
           const y = baseY - (baseY - peakY) * Math.pow(bell, 1.4) + dynamicJitter;
 
           if (i === 0) ctx.moveTo(x, baseY);
@@ -147,39 +157,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         // Label above peak
         ctx.fillStyle = color;
-        ctx.font = `bold ${8 * dpr}px 'JetBrains Mono', monospace`;
+        ctx.font = `bold ${7.5 * dpr}px 'JetBrains Mono', monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(label, cx, peakY - 8 * dpr);
+        ctx.fillText(label, cx, peakY - 6 * dpr);
       };
 
-      // Draw 2.4 GHz side curves
+      // Plot REAL 2.4 GHz access points
       if (bandSelection === 'both' || bandSelection === '2.4ghz') {
-        drawParabola(0.12, 0.16, -38, '#f43f5e', 'AP_CORP_01 (-38 dBm)');
-        drawParabola(0.17, 0.14, -62, '#06b6d4', 'Guest_Wi-Fi', true);
-        drawParabola(0.26, 0.16, -46, '#f43f5e', 'AP_BODEGA_CH6');
-        drawParabola(0.38, 0.16, -42, '#10b981', 'Canal 11 (ÓPTIMO)');
+        const aps24 = accessPoints.filter((a) => a.channel <= 14);
+        aps24.slice(0, 8).forEach((ap) => {
+          // Channel 1 to 14 mapped across 0.08 - 0.44
+          const normCh = (ap.channel - 1) / 13;
+          const cxRatio = 0.08 + normCh * 0.36;
+          const wRatio = (ap.channel_width || 20) > 20 ? 0.16 : 0.10;
+          let col = '#06b6d4';
+          if (ap.channel === 6) col = '#f43f5e';
+          else if (ap.channel === 1) col = '#10b981';
+          else if (ap.channel === 11) col = '#a855f7';
+          drawParabola(cxRatio, wRatio, ap.rssi, col, `${ap.ssid.slice(0, 14)} (${ap.rssi}dBm)`);
+        });
       }
 
-      // Draw 5 GHz side curves
+      // Plot REAL 5 GHz access points
       if (bandSelection === 'both' || bandSelection === '5ghz') {
-        drawParabola(0.62, 0.22, -45, '#865db1', 'COMP_SECURE_5G (80MHz)');
-        drawParabola(0.85, 0.18, -52, '#865db1', 'DIRECTOR_AP');
+        const aps5 = accessPoints.filter((a) => a.channel >= 36);
+        aps5.slice(0, 8).forEach((ap) => {
+          // Channel 36 to 165 mapped across 0.52 - 0.94
+          let normCh = 0;
+          if (ap.channel <= 64) {
+            normCh = (ap.channel - 36) / (64 - 36) * 0.45;
+          } else {
+            normCh = 0.55 + ((ap.channel - 149) / (165 - 149)) * 0.45;
+          }
+          const cxRatio = 0.52 + normCh * 0.40;
+          const wRatio = (ap.channel_width || 20) >= 80 ? 0.20 : ((ap.channel_width || 20) >= 40 ? 0.14 : 0.09);
+          drawParabola(cxRatio, wRatio, ap.rssi, '#865db1', `${ap.ssid.slice(0, 14)} (Ch ${ap.channel})`);
+        });
       }
 
       // Channel X-axis ticks
       const channels = [
-        { name: 'Ch 1', r: 0.12 },
-        { name: 'Ch 3', r: 0.17 },
-        { name: 'Ch 6', r: 0.26 },
-        { name: 'Ch 9', r: 0.32 },
-        { name: 'Ch 11 (2.4G)', r: 0.38 },
-        { name: 'Ch 36', r: 0.54 },
-        { name: 'Ch 40', r: 0.60 },
-        { name: 'Ch 44', r: 0.66 },
-        { name: 'Ch 48', r: 0.72 },
-        { name: 'Ch 149', r: 0.80 },
-        { name: 'Ch 157', r: 0.85 },
-        { name: 'Ch 165', r: 0.90 },
+        { name: 'Ch 1', r: 0.08 },
+        { name: 'Ch 6', r: 0.22 },
+        { name: 'Ch 11', r: 0.36 },
+        { name: 'Ch 36', r: 0.52 },
+        { name: 'Ch 48', r: 0.65 },
+        { name: 'Ch 149', r: 0.78 },
+        { name: 'Ch 165', r: 0.92 },
       ];
 
       ctx.fillStyle = '#9c80bd';
@@ -195,9 +219,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [bandSelection]);
+  }, [accessPoints, bandSelection]);
 
-  // Render RSSI Temporal Line Chart
+  // Render RSSI Temporal Line Chart using TOP REAL access points
+  const topRealAps = [...accessPoints].sort((a, b) => b.rssi - a.rssi).slice(0, 3);
+  const chartColors = ['#06b6d4', '#a855f7', '#f43f5e'];
+
   useEffect(() => {
     const canvas = rssiCanvasRef.current;
     if (!canvas) return;
@@ -249,32 +276,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
           const x = padLeft + plotW * t;
-          const osc = Math.sin(t * freq + offset + phaseShift) * 7;
-          const dbm = baseDbm + osc;
-          const norm = (dbm - -95) / (-30 - -95);
+          const wave = Math.sin(t * Math.PI * freq + offset + phaseShift) * 4;
+          const currentDbm = Math.min(-30, Math.max(-95, baseDbm + wave));
+          const norm = (currentDbm - -95) / (-30 - -95);
           const y = padTop + plotH * (1 - norm);
 
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.8 * dpr;
+        ctx.lineWidth = 2 * dpr;
         ctx.stroke();
       };
 
-      // 3 AP trend lines
-      drawTrendLine(-38, '#06b6d4', 4, 0); // Cyan: AP_CORP_01
-      drawTrendLine(-52, '#865db1', 5, 2); // Purple: CORP_SECURE_5G
-      drawTrendLine(-78, '#f43f5e', 7, 4); // Red/Dashed: AP_BODEGA_CH6
+      topRealAps.forEach((ap, idx) => {
+        drawTrendLine(ap.rssi, chartColors[idx % chartColors.length], 1.5 + idx * 0.5, idx * 1.5);
+      });
 
       animId = requestAnimationFrame(render);
     };
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, []);
+  }, [topRealAps]);
 
-  const filteredAps = defaultAps.filter(
+  // Real mapped Access Points for the table
+  const realApsTable = accessPoints.map((ap) => {
+    let state = 'EXCELENTE';
+    let stateColor = '#10b981';
+    if (ap.rssi < -80) {
+      state = 'DÉBIL';
+      stateColor = '#94a3b8';
+    } else if (ap.rssi < -70) {
+      state = 'MODERADO';
+      stateColor = '#f59e0b';
+    } else if (ap.rssi < -60) {
+      state = 'BUENO';
+      stateColor = '#38bdf8';
+    }
+    return {
+      ssid: ap.ssid || '<Oculta>',
+      bssid: ap.bssid,
+      channel: ap.channel,
+      rssi: ap.rssi,
+      width: `${ap.channel_width || 20} MHz`,
+      security: ap.security || 'WPA2',
+      state,
+      stateColor,
+      adapter_name: ap.adapter_name,
+    };
+  });
+
+  const filteredAps = realApsTable.filter(
     (ap) =>
       ap.ssid.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ap.bssid.toLowerCase().includes(searchQuery.toLowerCase())
@@ -282,13 +335,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="dashboard-view-container">
-      {/* 1. TOP ROW: 4 KPI CARDS matching Image 1 */}
+      {/* 1. TOP ROW: 4 KPI CARDS with Real Hardware Values */}
       <div className="dashboard-kpi-grid">
         {/* KPI 1 */}
         <div className="dash-kpi-card">
           <div className="dash-kpi-header">
-            <span className="dash-kpi-label">REDES DETECTADAS</span>
-            <span className="dash-kpi-tag tag-green">+4 nuevas</span>
+            <span className="dash-kpi-label">REDES DETECTADAS EN VIVO</span>
+            <span className="dash-kpi-tag tag-green">{totalCount} activas</span>
           </div>
           <div className="dash-kpi-body">
             <span className="dash-kpi-main-val">{totalCount}</span>
@@ -303,12 +356,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* KPI 2 */}
         <div className="dash-kpi-card">
           <div className="dash-kpi-header">
-            <span className="dash-kpi-label">OCUPACIÓN ESTIMADA</span>
-            <span className="dash-kpi-tag tag-amber">Densidad RF Elevada</span>
+            <span className="dash-kpi-label">DENSIDAD DE OCUPACIÓN RF</span>
+            <span className="dash-kpi-tag tag-amber">{occupancyVal}% canal</span>
           </div>
           <div className="dash-kpi-body">
             <span className="dash-kpi-main-val">{occupancyVal}%</span>
-            <span className="dash-kpi-unit">de ancho de banda</span>
+            <span className="dash-kpi-unit">ocupación espectral</span>
           </div>
           <div className="dash-kpi-progress-bar">
             <div className="dash-kpi-progress-fill" style={{ width: `${occupancyVal}%` }}></div>
@@ -318,35 +371,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* KPI 3 */}
         <div className="dash-kpi-card">
           <div className="dash-kpi-header">
-            <span className="dash-kpi-label">ÍNDICE DE INTERFERENCIA</span>
-            <span className="dash-kpi-tag tag-red">
-              <i className="bi bi-exclamation-triangle"></i> Alerta Severa
+            <span className="dash-kpi-label">ÍNDICE DE SALUD RF</span>
+            <span className="dash-kpi-tag tag-green">
+              {healthScore >= 75 ? 'Espectro Favorable' : 'Congestión Co-Canal'}
             </span>
           </div>
           <div className="dash-kpi-body">
-            <span className="dash-kpi-main-val" style={{ color: '#ef4444' }}>61</span>
+            <span className="dash-kpi-main-val">{healthScore}</span>
             <span className="dash-kpi-unit">/ 100</span>
           </div>
           <div className="dash-kpi-alert-sub">
-            <span style={{ color: '#fca5a5' }}>Colisión severa en Ch 1 y 6</span>
-            <i className="bi bi-broadcast" style={{ color: '#ef4444' }}></i>
+            <span>Interferencia: {interferenceIdx}%</span>
+            <i className="bi bi-broadcast"></i>
           </div>
         </div>
 
         {/* KPI 4 */}
         <div className="dash-kpi-card">
           <div className="dash-kpi-header">
-            <span className="dash-kpi-label">CANAL SUGERIDO (ÓPTIMO)</span>
-            <span className="dash-kpi-tag tag-green">Score 94/100</span>
+            <span className="dash-kpi-label">CANAL ÓPTIMO CALCULADO</span>
+            <span className="dash-kpi-tag tag-green">Recomendado</span>
           </div>
           <div className="dash-kpi-body">
             <span className="dash-kpi-main-val" style={{ fontSize: '1.25rem' }}>
-              Ch 11 (2.4G) & Ch 36 (5G)
+              Ch {optimal24} (2.4G) & Ch {optimal5} (5G)
             </span>
           </div>
           <div className="dash-kpi-alert-sub">
-            <span style={{ color: '#34d399' }}>SNR Estimado: +32 dB</span>
-            <i className="bi bi-check-circle" style={{ color: '#10b981' }}></i>
+            <span>Menor interferencia co-canal detectada</span>
+            <i className="bi bi-check-circle"></i>
           </div>
         </div>
       </div>
@@ -358,26 +411,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="dash-chart-header">
             <div className="dash-chart-title">
               <span className="chart-dot-pulse"></span>
-              <span>Ocupación Espectral por Canal (FFT RF)</span>
+              <span>Ocupación Espectral por Canal (FFT RF en Vivo)</span>
             </div>
             <div className="dash-chart-toggles">
               <span
                 className={`dash-band-tab ${bandSelection === '2.4ghz' ? 'active' : ''}`}
                 onClick={() => setBandSelection('2.4ghz')}
               >
-                — 2.4 GHz
+                — 2.4 GHz ({count24})
               </span>
               <span
                 className={`dash-band-tab ${bandSelection === '5ghz' ? 'active' : ''}`}
                 onClick={() => setBandSelection('5ghz')}
               >
-                — 5 GHz
+                — 5 GHz ({count5})
               </span>
               <button
                 className={`dash-band-btn ${bandSelection === 'both' ? 'active' : ''}`}
                 onClick={() => setBandSelection('both')}
               >
-                AMBAS 2.4G 5G
+                AMBAS BANDAS ({totalCount})
               </button>
             </div>
           </div>
@@ -387,8 +440,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="dash-chart-footer">
-            <span>Resolución FFT: 4096 bins / Intervalo: 1000ms</span>
-            <span style={{ color: '#38bdf8' }}>Solapamiento espectral: 38% en 2.412 GHz</span>
+            <span>Transceptores Wi-Fi activos en paralelo</span>
+            <span>{totalCount} Puntos de Acceso analizados en tiempo real</span>
           </div>
         </div>
 
@@ -396,10 +449,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="dash-chart-card dash-rssi-card">
           <div className="dash-chart-header">
             <div className="dash-chart-title">
-              <i className="bi bi-graph-up" style={{ color: 'var(--color5)' }}></i>
-              <span>RSSI Temporal</span>
+              <i className="bi bi-graph-up"></i>
+              <span>Potencia de Señal en Vivo (RSSI)</span>
             </div>
-            <span className="dash-time-tag">Últimos 15 min</span>
+            <span className="dash-time-tag">Tiempo Real</span>
           </div>
 
           <div className="dash-canvas-wrap">
@@ -407,21 +460,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="dash-rssi-legend">
-            <div className="rssi-leg-item">
-              <span className="leg-color-box" style={{ backgroundColor: '#06b6d4' }}></span>
-              <span className="leg-name">AP_CORP_01</span>
-              <span className="leg-val">-38 dBm</span>
-            </div>
-            <div className="rssi-leg-item">
-              <span className="leg-color-box" style={{ backgroundColor: '#865db1' }}></span>
-              <span className="leg-name">CORP_SECURE_5G</span>
-              <span className="leg-val">-52 dBm</span>
-            </div>
-            <div className="rssi-leg-item">
-              <span className="leg-color-box" style={{ backgroundColor: '#f43f5e' }}></span>
-              <span className="leg-name">AP_BODEGA_CH6</span>
-              <span className="leg-val">-78 dBm</span>
-            </div>
+            {topRealAps.map((ap, idx) => (
+              <div className="rssi-leg-item" key={ap.bssid}>
+                <span
+                  className="leg-color-box"
+                  style={{ backgroundColor: chartColors[idx % chartColors.length] }}
+                ></span>
+                <span className="leg-name">{ap.ssid}</span>
+                <span className="leg-val">{ap.rssi} dBm</span>
+              </div>
+            ))}
+            {topRealAps.length === 0 && (
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                Escaneando espectro con los adaptadores...
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -432,8 +485,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="dash-table-card">
           <div className="dash-table-header">
             <div className="dash-chart-title">
-              <i className="bi bi-broadcast-pin" style={{ color: 'var(--color5)' }}></i>
-              <span>Redes Detectadas en Tiempo Real</span>
+              <i className="bi bi-broadcast-pin"></i>
+              <span>Redes Detectadas por los Módulos de Hardware ({filteredAps.length})</span>
             </div>
             <div className="dash-table-search">
               <i className="bi bi-search"></i>
@@ -453,106 +506,133 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <th>SSID</th>
                   <th>BSSID MAC</th>
                   <th>CANAL</th>
-                  <th>NIVEL RSSI</th>
+                  <th>POTENCIA RSSI</th>
                   <th>ANCHO</th>
                   <th>SEGURIDAD</th>
                   <th>ESTADO</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredAps.map((ap) => (
-                  <tr key={ap.bssid}>
-                    <td className="cell-ssid">{ap.ssid}</td>
-                    <td className="cell-mono">{ap.bssid}</td>
-                    <td className="cell-mono">{ap.channel}</td>
-                    <td>
-                      <div className="rssi-bar-cell">
-                        <div
-                          className="rssi-mini-bar"
-                          style={{
-                            width: `${Math.min(100, Math.max(10, (ap.rssi + 100) * 1.5))}%`,
-                            backgroundColor: ap.stateColor,
-                          }}
-                        ></div>
-                        <span className="cell-mono">{ap.rssi} dBm</span>
-                      </div>
-                    </td>
-                    <td className="cell-mono">{ap.width}</td>
-                    <td>
-                      <span className="badge-sec">{ap.security}</span>
-                    </td>
-                    <td>
-                      <span
-                        className="badge-state"
-                        style={{
-                          borderColor: ap.stateColor,
-                          color: ap.stateColor,
-                          backgroundColor: ap.stateColor + '18',
-                        }}
-                      >
-                        {ap.state}
-                      </span>
+                {filteredAps.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      style={{ textAlign: 'center', padding: '28px', color: 'var(--text-muted)' }}
+                    >
+                      {accessPoints.length === 0
+                        ? 'Sintonizando hardware Wi-Fi... Esperando paquetes de baliza.'
+                        : 'No se encontraron redes con el criterio de búsqueda.'}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredAps.map((ap) => (
+                    <tr key={ap.bssid}>
+                      <td className="cell-ssid">{ap.ssid}</td>
+                      <td className="cell-mono">{ap.bssid}</td>
+                      <td className="cell-mono">{ap.channel}</td>
+                      <td>
+                        <div className="rssi-bar-cell">
+                          <div
+                            className="rssi-mini-bar"
+                            style={{
+                              width: `${Math.min(100, Math.max(10, (ap.rssi + 100) * 1.5))}%`,
+                              backgroundColor: ap.stateColor,
+                            }}
+                          ></div>
+                          <span className="cell-mono">{ap.rssi} dBm</span>
+                        </div>
+                      </td>
+                      <td className="cell-mono">{ap.width}</td>
+                      <td>
+                        <span className="badge-sec">{ap.security}</span>
+                      </td>
+                      <td>
+                        <span
+                          className="badge-state"
+                          style={{
+                            borderColor: ap.stateColor,
+                            color: ap.stateColor,
+                            backgroundColor: ap.stateColor + '18',
+                          }}
+                        >
+                          {ap.state}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Right: Technical Recommendations Card */}
+        {/* Right: Technical Recommendations Card from SpectrumOptimizer */}
         <div className="dash-recom-card">
           <div className="dash-recom-header">
             <div className="dash-chart-title">
-              <i className="bi bi-shield-shaded" style={{ color: 'var(--color5)' }}></i>
-              <span>Recomendaciones Técnicas Inmediatas</span>
+              <i className="bi bi-shield-shaded"></i>
+              <span>Diagnóstico RF y Recomendaciones</span>
             </div>
-            <span className="dash-recom-count">3 ACCIONES</span>
+            <span className="dash-recom-count">
+              {(recommendations?.findings?.length || 0) + (recommendations?.recommendations?.length || 0)} HALLAZGOS
+            </span>
           </div>
 
           <div className="dash-recom-list">
-            {/* Rec 1 */}
-            <div className="recom-item">
-              <div className="recom-title-row">
-                <i className="bi bi-arrow-repeat" style={{ color: '#38bdf8' }}></i>
-                <span className="recom-title">Migrar tráfico del canal 6 al canal 11</span>
-              </div>
-              <p className="recom-desc">
-                Reduce un 42% de colisiones co-canal detectadas entre AP_BODEGA_CH6 y redes adyacentes no controladas.
-              </p>
-              <div className="recom-action-row">
-                <span className="recom-impact">Impacto Estimado: +6.4 Mbps</span>
-                <button className="btn-recom-apply">APLICAR SUGERENCIA</button>
-              </div>
-            </div>
+            {/* Real Recommendations */}
+            {recommendations?.recommendations && recommendations.recommendations.length > 0 ? (
+              recommendations.recommendations.map((rec, i) => (
+                <div className="recom-item" key={i}>
+                  <div className="recom-title-row">
+                    <i className="bi bi-arrow-repeat"></i>
+                    <span className="recom-title">{rec.title}</span>
+                  </div>
+                  <p className="recom-desc">{rec.detail}</p>
+                  <div className="recom-action-row">
+                    <span className="recom-impact">{rec.action}</span>
+                    <span className="btn-recom-apply" style={{ pointerEvents: 'none' }}>
+                      CANAL {rec.target_channel} ({rec.band})
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : null}
 
-            {/* Rec 2 */}
-            <div className="recom-item recom-alert">
-              <div className="recom-title-row">
-                <i className="bi bi-exclamation-triangle-fill" style={{ color: '#ef4444' }}></i>
-                <span className="recom-title">Interferencia no WiFi detectada en 2.437 GHz</span>
-              </div>
-              <p className="recom-desc">
-                Fuente continua de radiofrecuencia (posible horno microondas industrial o enlace CCTV analógico activo).
-              </p>
-              <div className="recom-action-row">
-                <span className="recom-impact" style={{ color: '#f87171' }}>
-                  Severidad: Alta (Ch 6 degradado)
-                </span>
-                <button className="btn-recom-locate">LOCALIZAR EMISOR</button>
-              </div>
-            </div>
+            {/* Real Findings */}
+            {recommendations?.findings && recommendations.findings.length > 0 ? (
+              recommendations.findings.map((f, i) => (
+                <div
+                  className={`recom-item ${f.severity === 'CRITICAL' ? 'recom-alert' : ''}`}
+                  key={`find-${i}`}
+                >
+                  <div className="recom-title-row">
+                    <i
+                      className={`bi ${f.severity === 'CRITICAL' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill'}`}
+                    ></i>
+                    <span className="recom-title">{f.title}</span>
+                  </div>
+                  <p className="recom-desc">{f.description}</p>
+                  <div className="recom-action-row">
+                    <span className="recom-impact">
+                      Severidad: {f.severity} {f.channel ? `• Canal ${f.channel}` : ''}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : null}
 
-            {/* Rec 3 */}
-            <div className="recom-item">
-              <div className="recom-title-row">
-                <i className="bi bi-sliders" style={{ color: '#f59e0b' }}></i>
-                <span className="recom-title">Potencia excesiva en AP-Planta-Baja</span>
-              </div>
-              <p className="recom-desc">
-                Reducir potencia de transmisión a 14 dBm para evitar solapamiento innecesario con celdas de piso 2.
-              </p>
-            </div>
+            {(!recommendations?.recommendations || recommendations.recommendations.length === 0) &&
+              (!recommendations?.findings || recommendations.findings.length === 0) && (
+                <div className="recom-item">
+                  <div className="recom-title-row">
+                    <i className="bi bi-check-circle"></i>
+                    <span className="recom-title">Espectro Radioeléctrico Analizado</span>
+                  </div>
+                  <p className="recom-desc">
+                    Los canales monitoreados operan dentro de los umbrales de contención estándar. Los adaptadores continúan transmitiendo en vivo.
+                  </p>
+                </div>
+              )}
           </div>
         </div>
       </div>

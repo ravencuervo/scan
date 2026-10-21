@@ -118,10 +118,9 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
         ctx.fillText(tick, x, h - padBottom + 16 * dpr);
       });
 
-      // Draw Oscillogram Waves
-      // Curve 1: Primary active 5 GHz network (Cyan #38bdf8)
-      const primaryAp = accessPoints[0] || { ssid: 'Corp-Office-5G', channel: 36, rssi: -48 };
-      const secondaryAp = accessPoints[1] || { ssid: 'Staff-WiFi', channel: 6, rssi: -66 };
+      // Draw Oscillogram Waves from Real Hardware Scanned APs
+      const primaryAp = accessPoints[0] || null;
+      const secondaryAp = accessPoints[1] || null;
 
       const drawWave = (color: string, baseRssi: number, freq: number, phaseShift: number) => {
         ctx.beginPath();
@@ -152,43 +151,54 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
         ctx.fill();
       };
 
-      // Draw secondary curve (Purple #865db1)
-      drawWave('#865db1', secondaryAp.rssi || -66, 6, 2.5);
+      if (secondaryAp) {
+        // Draw secondary curve (Purple #865db1)
+        drawWave('#865db1', secondaryAp.rssi, 6, 2.5);
 
-      // Draw primary curve (Cyan #38bdf8)
-      drawWave('#38bdf8', primaryAp.rssi || -48, 4.5, 0);
+        // Floating Marker Tooltip for Secondary
+        const pin2X = padLeft + plotW * 0.72;
+        const pin2Y = dbmToY(secondaryAp.rssi);
+        ctx.fillStyle = '#1e053e';
+        ctx.strokeStyle = '#865db1';
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.roundRect(pin2X - 58 * dpr, pin2Y - 26 * dpr, 116 * dpr, 20 * dpr, 4 * dpr);
+        ctx.fill();
+        ctx.stroke();
 
-      // Floating Marker Tooltip for Primary
-      const pin1X = padLeft + plotW * 0.22;
-      const pin1Y = dbmToY(primaryAp.rssi || -48);
-      ctx.fillStyle = '#1e053e';
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1.5 * dpr;
-      ctx.beginPath();
-      ctx.roundRect(pin1X - 60 * dpr, pin1Y - 26 * dpr, 120 * dpr, 20 * dpr, 4 * dpr);
-      ctx.fill();
-      ctx.stroke();
+        ctx.fillStyle = '#865db1';
+        ctx.font = `bold ${8.5 * dpr}px 'JetBrains Mono', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`${secondaryAp.ssid}: ${secondaryAp.rssi} dBm`, pin2X, pin2Y - 13 * dpr);
+      }
 
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = `bold ${8.5 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillText(`${primaryAp.ssid}: ${primaryAp.rssi} dBm`, pin1X, pin1Y - 13 * dpr);
+      if (primaryAp) {
+        // Draw primary curve (Cyan #38bdf8)
+        drawWave('#38bdf8', primaryAp.rssi, 4.5, 0);
 
-      // Floating Marker Tooltip for Secondary
-      const pin2X = padLeft + plotW * 0.72;
-      const pin2Y = dbmToY(secondaryAp.rssi || -66);
-      ctx.fillStyle = '#1e053e';
-      ctx.strokeStyle = '#865db1';
-      ctx.lineWidth = 1.5 * dpr;
-      ctx.beginPath();
-      ctx.roundRect(pin2X - 58 * dpr, pin2Y - 26 * dpr, 116 * dpr, 20 * dpr, 4 * dpr);
-      ctx.fill();
-      ctx.stroke();
+        // Floating Marker Tooltip for Primary
+        const pin1X = padLeft + plotW * 0.22;
+        const pin1Y = dbmToY(primaryAp.rssi);
+        ctx.fillStyle = '#1e053e';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.roundRect(pin1X - 60 * dpr, pin1Y - 26 * dpr, 120 * dpr, 20 * dpr, 4 * dpr);
+        ctx.fill();
+        ctx.stroke();
 
-      ctx.fillStyle = '#865db1';
-      ctx.font = `bold ${8.5 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillText(`${secondaryAp.ssid}: ${secondaryAp.rssi} dBm`, pin2X, pin2Y - 13 * dpr);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = `bold ${8.5 * dpr}px 'JetBrains Mono', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`${primaryAp.ssid}: ${primaryAp.rssi} dBm`, pin1X, pin1Y - 13 * dpr);
+      } else {
+        // Baseline noise curve when starting or scanning
+        drawWave('#6f489a', -92, 3, 0);
+        ctx.fillStyle = '#9c80bd';
+        ctx.font = `${9 * dpr}px 'JetBrains Mono', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('Capturando señales de radiofrecuencia desde adaptadores físicos...', padLeft + plotW / 2, padTop + plotH / 2);
+      }
 
       animId = requestAnimationFrame(render);
     };
@@ -315,12 +325,12 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
         <div className="oscillogram-legend-items">
           <div className="legend-tag">
             <span className="legend-line" style={{ backgroundColor: '#38bdf8' }}></span>
-            <span>Canal 36 (Corp-Office-5G)</span>
+            <span>{accessPoints[0] ? `Canal ${accessPoints[0].channel} (${accessPoints[0].ssid})` : 'Sensor 1 (Esperando señal)'}</span>
           </div>
 
           <div className="legend-tag">
             <span className="legend-line" style={{ backgroundColor: '#865db1' }}></span>
-            <span>Canal 6 (Staff-WiFi)</span>
+            <span>{accessPoints[1] ? `Canal ${accessPoints[1].channel} (${accessPoints[1].ssid})` : 'Sensor 2 (Esperando señal)'}</span>
           </div>
 
           <div className="legend-tag">
@@ -329,7 +339,7 @@ export const OscillogramChart: React.FC<OscillogramChartProps> = ({ accessPoints
           </div>
         </div>
 
-        <span className="antenna-spec-tag">DIPOLE ANTENNA 5 dBi</span>
+        <span className="antenna-spec-tag">RECEPTORES HARDWARE REALES</span>
       </div>
     </div>
   );

@@ -53,13 +53,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="badge badge-engine">
-          <i className="bi bi-cpu" style={{ color: 'var(--color5)' }}></i>
+          <i className="bi bi-cpu" style={{ color: 'inherit' }}></i>
           <span>MOTOR: {engineType.toUpperCase()}</span>
         </div>
 
         {user && (
           <div className="user-profile-badge">
-            <i className="bi bi-person-fill" style={{ color: 'var(--color5)' }}></i>
+            <i className="bi bi-person-fill" style={{ color: 'inherit' }}></i>
             <span>{user.full_name || user.username}</span>
             <button className="btn-logout" onClick={onLogout} title="Cerrar Sesión">
               <i className="bi bi-box-arrow-right"></i> Salir
@@ -68,7 +68,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
 
         <button className="btn btn-secondary" onClick={onOpenNewSession}>
-          <i className="bi bi-plus-circle" style={{ color: 'var(--color5)' }}></i>
+          <i className="bi bi-plus-circle" style={{ color: 'inherit' }}></i>
           <span>Nueva Auditoría</span>
         </button>
 
@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={onExportExcel}
           disabled={exportingExcel}
         >
-          <i className="bi bi-file-earmark-excel" style={{ color: 'var(--color5)' }}></i>
+          <i className="bi bi-file-earmark-excel" style={{ color: 'inherit' }}></i>
           <span>{exportingExcel ? 'Generando Excel...' : 'Exportar Excel'}</span>
         </button>
       </div>

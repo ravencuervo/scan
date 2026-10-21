@@ -4,7 +4,7 @@ import random
 import threading
 import logging
 from typing import List, Optional, Callable
-from app.capture.hal import BaseCaptureEngine, ScannedAP, channel_to_frequency, rssi_to_quality
+from app.capture.hal import BaseCaptureEngine, ScannedAP, WirelessAdapter, channel_to_frequency, rssi_to_quality
 
 logger = logging.getLogger("aeroscan.capture.simulation")
 
@@ -55,6 +55,23 @@ class SimulationEngine(BaseCaptureEngine):
 
     def is_hardware_available(self) -> bool:
         return True  # Always available
+
+    def get_adapters(self) -> List[WirelessAdapter]:
+        return [
+            WirelessAdapter(
+                id="sim0",
+                name="Simulador RF Multi-Canal",
+                description="Transceptor Matemático de Radiofrecuencia Virtual",
+                mac_address="02:00:00:AA:BB:CC",
+                guid="00000000-0000-0000-0000-000000000001",
+                status="connected",
+                connected_ssid="UNA-Puno_5G_Campus",
+                current_band="5 GHz",
+                current_channel=36,
+                radio_type="802.11ax",
+                is_physical=False
+            )
+        ]
 
     def scan_once(self) -> List[ScannedAP]:
         self.step += 1

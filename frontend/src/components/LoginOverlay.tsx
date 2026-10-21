@@ -102,7 +102,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ onLoginSuccess }) =>
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="login-field">
               <label htmlFor="login-username">
-                <i className="bi bi-person-fill" style={{ color: 'var(--color5)' }}></i> Usuario
+                <i className="bi bi-person-fill" style={{ color: 'inherit' }}></i> Usuario
               </label>
               <input
                 id="login-username"
@@ -117,7 +117,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ onLoginSuccess }) =>
 
             <div className="login-field">
               <label htmlFor="login-password">
-                <i className="bi bi-shield-lock-fill" style={{ color: 'var(--color5)' }}></i> Contraseña
+                <i className="bi bi-shield-lock-fill" style={{ color: 'inherit' }}></i> Contraseña
               </label>
               <input
                 id="login-password"

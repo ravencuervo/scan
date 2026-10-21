@@ -9,3 +9,4 @@ python-multipart>=0.0.9
 pywebview>=6.2.0
 pythonnet>=3.0.0
 pyinstaller>=6.5.0
+requests>=2.31.0

@@ -89,37 +89,40 @@ export const ChannelSweepStrip: React.FC<ChannelSweepStripProps> = ({ accessPoin
           const apCount = matchingAps.length;
           const bestRssi = matchingAps.length > 0 ? Math.max(...matchingAps.map((a) => a.rssi)) : null;
 
-          const isActive = item.ch === 36;
-          let status = item.defaultStatus;
+          const strongestAp = accessPoints.length > 0
+            ? accessPoints.reduce((prev, curr) => (curr.rssi > prev.rssi ? curr : prev), accessPoints[0])
+            : null;
+          const isActive = strongestAp ? strongestAp.channel === item.ch : false;
+
+          let status: 'clear' | 'moderate' | 'high' = 'clear';
           if (apCount >= 4) status = 'high';
           else if (apCount >= 2) status = 'moderate';
+          else status = 'clear';
 
           return (
             <div
               key={item.ch}
               className={`channel-cell ${isActive ? 'active-channel' : ''}`}
             >
-              {isActive && <span className="actual-pill-tag">ACTUAL</span>}
+              {isActive && <span className="actual-pill-tag">MÁS POTENTE</span>}
 
               <div className="channel-cell-top">
                 <span className="cell-ch-num">CH {item.ch}</span>
                 <span className="cell-ch-freq">{item.freq}</span>
               </div>
 
-              {isActive ? (
+              {apCount > 0 ? (
                 <div className="cell-stats-center">
-                  <span className="cell-dbm-txt">
-                    {bestRssi ? `${bestRssi} dBm` : '-48 dBm'}
-                  </span>
-                  <span className="cell-ap-count">
-                    {apCount > 0 ? `${apCount} AP` : '1 AP'}
+                  <span className="cell-dbm-txt">{bestRssi} dBm</span>
+                  <span className="cell-ap-count">{apCount} {apCount === 1 ? 'AP' : 'APs'}</span>
+                </div>
+              ) : (
+                <div className="cell-stats-center">
+                  <span className="cell-ap-count" style={{ color: 'var(--text-dim)', fontSize: '0.65rem' }}>
+                    0 APs (Libre)
                   </span>
                 </div>
-              ) : apCount > 0 ? (
-                <div className="cell-stats-center">
-                  <span className="cell-ap-count">{apCount} APs</span>
-                </div>
-              ) : null}
+              )}
 
               <div
                 className="channel-congestion-bar"

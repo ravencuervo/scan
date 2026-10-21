@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, ScannedAP, SpectrumMetrics, SpectrumRecommendations, TelemetryPayload } from './types/spectrum';
+import type { User, ScannedAP, SpectrumMetrics, SpectrumRecommendations, TelemetryPayload, WirelessAdapter } from './types/spectrum';
 import './App.css';
 import { LoginOverlay } from './components/LoginOverlay';
 import { Sidebar } from './components/Sidebar';
@@ -21,10 +21,11 @@ export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('aeroscan_token'));
   const [activeNav, setActiveNav] = useState('dashboard');
-  const [captureMode, setCaptureMode] = useState<'demo' | 'real'>('demo');
   const [isCapturing, setIsCapturing] = useState(true);
   const [isLive, setIsLive] = useState(false);
   const [engineType, setEngineType] = useState('windows');
+  const [adapters, setAdapters] = useState<WirelessAdapter[]>([]);
+  const [selectedAdapter, setSelectedAdapter] = useState<string>('ALL');
   const [accessPoints, setAccessPoints] = useState<ScannedAP[]>([]);
   const [metrics, setMetrics] = useState<SpectrumMetrics | null>(null);
   const [recommendations, setRecommendations] = useState<SpectrumRecommendations | null>(null);
@@ -65,6 +66,21 @@ export const App: React.FC = () => {
     };
 
     checkAuth();
+
+    // Fetch detected Wi-Fi hardware adapters (1, 2, or multi-adapter)
+    const fetchAdapters = async () => {
+      try {
+        const res = await fetch('/api/hardware/adapters');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.adapters) setAdapters(data.adapters);
+          if (data.selected_adapter) setSelectedAdapter(data.selected_adapter);
+        }
+      } catch (err) {
+        console.warn('Error fetching hardware adapters:', err);
+      }
+    };
+    fetchAdapters();
   }, []);
 
   // Connect WebSocket when authenticated
@@ -97,6 +113,8 @@ export const App: React.FC = () => {
             setMetrics(data.metrics || null);
             setRecommendations(data.recommendations || null);
             if (data.engine_type) setEngineType(data.engine_type);
+            if (data.adapters) setAdapters(data.adapters);
+            if (data.selected_adapter) setSelectedAdapter(data.selected_adapter);
           }
         } catch (err) {
           console.error('Error parsing telemetry:', err);
@@ -135,6 +153,23 @@ export const App: React.FC = () => {
     setToken(null);
   };
 
+  const handleSelectAdapter = async (adapterId: string) => {
+    setSelectedAdapter(adapterId);
+    try {
+      const res = await fetch('/api/hardware/adapters/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adapter_id: adapterId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.selected_adapter) setSelectedAdapter(data.selected_adapter);
+      }
+    } catch (err) {
+      console.error('Error switching hardware adapter:', err);
+    }
+  };
+
   const handleExportPdf = async () => {
     try {
       const res = await fetch('/api/reports/pdf', { method: 'POST' });
@@ -147,7 +182,19 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleStartSession = async (name: string, location: string, engine: string) => {
+  const handleExportExcel = async () => {
+    try {
+      const res = await fetch('/api/reports/excel', { method: 'POST' });
+      const data = await res.json();
+      if (data.download_url) {
+        window.location.href = data.download_url;
+      }
+    } catch (err: any) {
+      alert('Error generando Excel: ' + err.message);
+    }
+  };
+
+  const handleStartSession = async (name: string, location: string, engine: string, adapterId: string = 'ALL') => {
     const res = await fetch('/api/session/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -155,6 +202,7 @@ export const App: React.FC = () => {
         name,
         location,
         engine_type: engine,
+        adapter_id: adapterId,
         user_id: user ? user.id : null,
       }),
     });
@@ -181,9 +229,7 @@ export const App: React.FC = () => {
             user={user}
             engineType={engineType}
             isLive={isLive}
-            captureMode={captureMode}
             activeTab={activeNav}
-            onModeChange={setCaptureMode}
             onLogout={handleLogout}
           />
 
@@ -206,13 +252,20 @@ export const App: React.FC = () => {
                   engineType={engineType}
                   isCapturing={isCapturing}
                   totalAps={accessPoints.length}
+                  adapters={adapters}
+                  selectedAdapter={selectedAdapter}
+                  onSelectAdapter={handleSelectAdapter}
                   onToggleCapture={() => setIsCapturing(!isCapturing)}
                   onExportReports={handleExportPdf}
                 />
 
                 <div className="main-viz-split-grid">
                   <OscillogramChart accessPoints={accessPoints} />
-                  <SdrTelemetryPanel onSaveFrame={handleExportPdf} />
+                  <SdrTelemetryPanel
+                    adapters={adapters}
+                    selectedAdapter={selectedAdapter}
+                    onSaveFrame={handleExportPdf}
+                  />
                 </div>
 
                 <ChannelSweepStrip accessPoints={accessPoints} />
@@ -231,7 +284,15 @@ export const App: React.FC = () => {
 
             {/* 5. Reportes técnicos (Image 4) */}
             {activeNav === 'reports' && (
-              <ReportsView onExportPdf={handleExportPdf} />
+              <ReportsView
+                accessPoints={accessPoints}
+                metrics={metrics}
+                recommendations={recommendations}
+                adapters={adapters}
+                user={user}
+                onExportPdf={handleExportPdf}
+                onExportExcel={handleExportExcel}
+              />
             )}
 
             {/* 6. Configuración / Diagnóstico SDR / Documentación */}
@@ -247,6 +308,8 @@ export const App: React.FC = () => {
 
       <NewSessionModal
         isOpen={isModalOpen}
+        adapters={adapters}
+        selectedAdapter={selectedAdapter}
         onClose={() => setIsModalOpen(false)}
         onStartSession={handleStartSession}
       />

@@ -1,43 +1,76 @@
 import React from 'react';
+import type { WirelessAdapter } from '../types/spectrum';
 import './SdrTelemetryPanel.css';
 
 interface SdrTelemetryPanelProps {
+  adapters?: WirelessAdapter[];
+  selectedAdapter?: string;
   onSaveFrame: () => void;
 }
 
-export const SdrTelemetryPanel: React.FC<SdrTelemetryPanelProps> = ({ onSaveFrame }) => {
+export const SdrTelemetryPanel: React.FC<SdrTelemetryPanelProps> = ({
+  adapters = [],
+  selectedAdapter = 'ALL',
+  onSaveFrame,
+}) => {
   return (
     <div className="sdr-telemetry-panel">
-      {/* 1. Estado del Motor SDR */}
+      {/* 1. Módulos Wi-Fi Físicos Detectados */}
       <div className="sdr-card">
         <div className="sdr-card-header">
           <div className="sdr-card-title">
-            <i className="bi bi-cpu-fill"></i>
-            <span>Estado del Motor SDR</span>
+            <i className="bi bi-hdd-network-fill"></i>
+            <span>Módulos de Hardware ({adapters.length})</span>
           </div>
-          <span className="badge-online">ONLINE</span>
+          <span className="badge-online">
+            {adapters.length === 1 ? '1 MÓDULO' : `${adapters.length} MÓDULOS`}
+          </span>
         </div>
 
         <div className="sdr-metrics-table">
-          <div className="sdr-metric-row">
-            <span className="sdr-metric-key">Procesamiento FFT:</span>
-            <span className="sdr-metric-val">40 MHz en tiempo real</span>
-          </div>
-
-          <div className="sdr-metric-row">
-            <span className="sdr-metric-key">Tasa de Muestreo I/Q:</span>
-            <span className="sdr-metric-val">2.4 MSPS sincrónico</span>
-          </div>
-
-          <div className="sdr-metric-row">
-            <span className="sdr-metric-key">Sensibilidad RF:</span>
-            <span className="sdr-metric-val">-96 dBm ± 0.5</span>
-          </div>
-
-          <div className="sdr-metric-row">
-            <span className="sdr-metric-key">Temperatura Dongle:</span>
-            <span className="sdr-metric-val">41.8 °C (Estable)</span>
-          </div>
+          {adapters.length === 0 ? (
+            <div className="sdr-metric-row">
+              <span className="sdr-metric-key">Estado:</span>
+              <span className="sdr-metric-val">Buscando transceptores...</span>
+            </div>
+          ) : (
+            adapters.map((ad, idx) => (
+              <div
+                key={ad.id}
+                style={{
+                  borderBottom: idx < adapters.length - 1 ? '1px solid rgba(88, 51, 131, 0.3)' : 'none',
+                  paddingBottom: '8px',
+                  marginBottom: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--color6)', fontSize: '0.8rem' }}>
+                    <i className="bi bi-wifi" style={{ marginRight: '6px', color: 'inherit' }}></i>
+                    {ad.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.65rem',
+                      fontFamily: 'var(--font-mono)',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: 'var(--color6)',
+                    }}
+                  >
+                    {ad.status === 'connected' ? 'CONECTADO' : 'LIBRE / ESCANEO'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {ad.description}
+                </div>
+                <div style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: 'var(--text-dim)', marginTop: '2px' }}>
+                  MAC: {ad.mac_address || 'N/A'} {ad.connected_ssid && `• SSID: ${ad.connected_ssid} (Ch ${ad.current_channel || '?'})`}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -45,10 +78,10 @@ export const SdrTelemetryPanel: React.FC<SdrTelemetryPanelProps> = ({ onSaveFram
       <div className="sdr-card">
         <div className="sdr-card-header">
           <div className="sdr-card-title">
-            <i className="bi bi-shield-check"></i>
+            <i className="bi bi-shield-check" style={{ color: 'inherit' }}></i>
             <span>TELEMETRÍA Y TOLERANCIAS</span>
           </div>
-          <i className="bi bi-check-circle-fill" style={{ color: '#10b981' }}></i>
+          <i className="bi bi-check-circle" style={{ color: 'inherit' }}></i>
         </div>
 
         <div className="tolerances-list">
@@ -57,8 +90,12 @@ export const SdrTelemetryPanel: React.FC<SdrTelemetryPanelProps> = ({ onSaveFram
               <i className="bi bi-check2"></i>
             </div>
             <div className="tolerance-content">
-              <span className="tolerance-title">Adaptador 100% compatible</span>
-              <span className="tolerance-sub">Firmware RTL8812AU v5.6.4.2 inyección activada</span>
+              <span className="tolerance-title">
+                {selectedAdapter === 'ALL'
+                  ? `Modo Multi-Sensor (${adapters.length} transceptores activos)`
+                  : `Transceptor dedicado: ${selectedAdapter}`}
+              </span>
+              <span className="tolerance-sub">Enumeración WLAN nativa y agregación multi-antena</span>
             </div>
           </div>
 

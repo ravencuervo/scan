@@ -1,3 +1,19 @@
+export interface WirelessAdapter {
+  id: string;
+  name: string;
+  description: string;
+  mac_address: string;
+  guid?: string;
+  status: 'connected' | 'disconnected' | 'disabled' | string;
+  connected_ssid?: string | null;
+  connected_bssid?: string | null;
+  current_channel?: number | null;
+  current_band?: string | null;
+  radio_type?: string | null;
+  is_physical?: boolean;
+  driver?: string | null;
+}
+
 export interface ScannedAP {
   bssid: string;
   ssid: string;
@@ -10,6 +26,7 @@ export interface ScannedAP {
   channel_width: number;
   vendor: string;
   timestamp: number;
+  adapter_name?: string | null;
 }
 
 export interface ChannelData {
@@ -73,6 +90,8 @@ export interface TelemetryPayload {
   type: string;
   session_id: number | null;
   engine_type: string;
+  adapters?: WirelessAdapter[];
+  selected_adapter?: string;
   metrics: SpectrumMetrics;
   recommendations: SpectrumRecommendations;
   access_points: ScannedAP[];

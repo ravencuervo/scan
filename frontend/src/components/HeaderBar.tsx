@@ -6,18 +6,15 @@ interface HeaderBarProps {
   user: User | null;
   engineType: string;
   isLive: boolean;
-  captureMode: 'demo' | 'real';
   activeTab?: string;
-  onModeChange: (mode: 'demo' | 'real') => void;
   onLogout: () => void;
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   user,
   engineType,
-  captureMode,
+  isLive,
   activeTab = 'live',
-  onModeChange,
   onLogout,
 }) => {
   const getBreadcrumbTitle = () => {
@@ -27,8 +24,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <>
             <span>AeroScan</span>
             <span className="bc-sub">/</span>
-            <span className="bc-sub">Dashboard Principal</span>
-            <span className="header-sim-badge">DATOS SIMULADOS</span>
+            <span className="bc-sub">Dashboard de Espectro en Vivo</span>
           </>
         );
       case 'channels':
@@ -36,23 +32,23 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <>
             <span>AeroScan</span>
             <span className="bc-sub">/</span>
-            <span className="bc-sub">Modo: Análisis de Espectro 2.4/5 GHz</span>
+            <span className="bc-sub">Análisis de Espectro 2.4 / 5 GHz</span>
           </>
         );
       case 'history':
         return (
           <>
-            <span>Historial de Auditoría Espectral</span>
+            <span>AeroScan</span>
             <span className="bc-sub">/</span>
-            <span className="bc-sub">SES-DIFF-ENGINE</span>
+            <span className="bc-sub">Historial de Auditorías Reales</span>
           </>
         );
       case 'reports':
         return (
           <>
-            <span>Informe Técnico de Espectro RF</span>
-            <span className="bc-sub">-</span>
-            <span className="bc-sub">Sesión #SES-2025-0512-B</span>
+            <span>AeroScan</span>
+            <span className="bc-sub">/</span>
+            <span className="bc-sub">Informes Técnicos de Ingeniería RF</span>
           </>
         );
       case 'live':
@@ -61,7 +57,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <>
             <span>AeroScan</span>
             <span className="bc-sub">/</span>
-            <span className="bc-sub">Captura en Vivo</span>
+            <span className="bc-sub">Captura en Vivo Multi-Antena</span>
           </>
         );
     }
@@ -74,26 +70,16 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           {getBreadcrumbTitle()}
         </div>
 
-        <div className="header-mode-toggle">
-          <button
-            className={`header-mode-btn ${captureMode === 'demo' ? 'active' : ''}`}
-            onClick={() => onModeChange('demo')}
-          >
-            DEMOSTRACION
-          </button>
-          <button
-            className={`header-mode-btn ${captureMode === 'real' ? 'active' : ''}`}
-            onClick={() => onModeChange('real')}
-          >
-            CAPTURA REAL ●
-          </button>
+        <div className="header-hardware-live-tag">
+          <i className="bi bi-hdd-network"></i>
+          <span>HARDWARE REAL CONECTADO</span>
         </div>
       </div>
 
       <div className="header-right-actions">
         <div className="header-status-badge">
-          <span className="header-status-dot"></span>
-          <span>SDR: {engineType.toUpperCase()} Conectado</span>
+          <span className="header-status-dot" style={{ backgroundColor: isLive ? '#10b981' : '#f59e0b' }}></span>
+          <span>SDR: {engineType.toUpperCase()} {isLive ? 'En Línea' : 'Sincronizando...'}</span>
         </div>
 
         <div className="header-fft-badge">

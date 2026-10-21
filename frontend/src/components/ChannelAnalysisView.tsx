@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ScannedAP } from '../types/spectrum';
 import './ChannelAnalysisView.css';
 
@@ -6,12 +6,94 @@ interface ChannelAnalysisViewProps {
   accessPoints: ScannedAP[];
 }
 
-export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ accessPoints: _accessPoints }) => {
+export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ accessPoints = [] }) => {
   const [selectedBand, setSelectedBand] = useState<'2.4ghz' | '5ghz'>('2.4ghz');
   const [channelWidth, setChannelWidth] = useState<'all' | '20' | '40' | '80' | '160'>('20');
   const [scaleMode, setScaleMode] = useState<'dbm' | 'mw'>('dbm');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Filter APs by selected RF band
+  const bandAps = useMemo(() => {
+    return accessPoints.filter((ap) => (selectedBand === '2.4ghz' ? ap.channel <= 14 : ap.channel > 14));
+  }, [accessPoints, selectedBand]);
+
+  // Group APs by channel
+  const channelMap = useMemo(() => {
+    const map = new Map<number, ScannedAP[]>();
+    bandAps.forEach((ap) => {
+      const list = map.get(ap.channel) || [];
+      list.push(ap);
+      map.set(ap.channel, list);
+    });
+    return map;
+  }, [bandAps]);
+
+  // Compute optimal recommendation and congestion metrics
+  const { suggestedChannel, suggestedScore, congestedChannel, maxApCount } = useMemo(() => {
+    if (selectedBand === '2.4ghz') {
+      const candidates = [1, 6, 11];
+      let bestCh = 1;
+      let minPenalty = Infinity;
+      let worstCh = 6;
+      let maxAps = 0;
+
+      candidates.forEach((ch) => {
+        let aps = 0;
+        for (let c = ch - 2; c <= ch + 2; c++) {
+          aps += (channelMap.get(c) || []).length;
+        }
+        if (aps < minPenalty) {
+          minPenalty = aps;
+          bestCh = ch;
+        }
+      });
+
+      channelMap.forEach((aps, ch) => {
+        if (aps.length > maxAps) {
+          maxAps = aps.length;
+          worstCh = ch;
+        }
+      });
+
+      const score = Math.max(65, Math.min(99, 100 - minPenalty * 8));
+      return {
+        suggestedChannel: bestCh,
+        suggestedScore: score,
+        congestedChannel: worstCh,
+        maxApCount: maxAps,
+      };
+    } else {
+      const candidates = [36, 40, 44, 48, 149, 153, 157, 161];
+      let bestCh = 36;
+      let minAps = Infinity;
+      let worstCh = 36;
+      let maxAps = 0;
+
+      candidates.forEach((ch) => {
+        const count = (channelMap.get(ch) || []).length;
+        if (count < minAps) {
+          minAps = count;
+          bestCh = ch;
+        }
+      });
+
+      channelMap.forEach((aps, ch) => {
+        if (aps.length > maxAps) {
+          maxAps = aps.length;
+          worstCh = ch;
+        }
+      });
+
+      const score = Math.max(75, Math.min(100, 100 - minAps * 6));
+      return {
+        suggestedChannel: bestCh,
+        suggestedScore: score,
+        congestedChannel: worstCh,
+        maxApCount: maxAps,
+      };
+    }
+  }, [channelMap, selectedBand]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -87,7 +169,7 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
           const t = i / steps;
           const x = cx - bw / 2 + bw * t;
           const bell = Math.sin(t * Math.PI);
-          const jitter = Math.sin(phase * 1.5 + i * 0.5) * (1.5 * dpr * pulseScale);
+          const jitter = Math.sin(phase * 1.5 + i * 0.5) * (1.2 * dpr * pulseScale);
           const y = baseY - (baseY - peakY) * Math.pow(bell, 1.4) + jitter;
 
           if (i === 0) ctx.moveTo(x, baseY);
@@ -105,112 +187,147 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
         ctx.fill();
       };
 
-      // Draw Channel Curves matching Image 3:
-      // Ch 1 (2.412 GHz) - Clean Active (Cyan #06b6d4)
-      drawChannelBell(0.18, 0.22, -42, '#06b6d4', 'rgba(6, 182, 212, 0.25)');
-      // Ch 3-4 (Interf. Adyacente - Amber #f59e0b)
-      drawChannelBell(0.32, 0.20, -72, '#f59e0b', 'rgba(245, 158, 11, 0.15)');
-      // Ch 6 (2.437 GHz) - Severe Collision (Red #ef4444)
-      drawChannelBell(0.52, 0.26, -34, '#ef4444', 'rgba(239, 68, 68, 0.35)', 2);
-      // Ch 8-9 (Interf. Adyacente - Amber #f59e0b)
-      drawChannelBell(0.68, 0.20, -74, '#f59e0b', 'rgba(245, 158, 11, 0.15)');
-      // Ch 11 (2.462 GHz) - Clean Optimal (Green #10b981)
-      drawChannelBell(0.85, 0.22, -40, '#10b981', 'rgba(16, 185, 129, 0.25)');
+      if (selectedBand === '2.4ghz') {
+        // Channels 1 to 13 ticks
+        const chRatio = (ch: number) => 0.12 + ((ch - 1) / 12) * 0.76;
 
-      // Pinned Marker 1: Ch 1 AP_CORP_01
-      const p1x = padLeft + plotW * 0.18;
-      const p1y = padTop + plotH * (1 - (-42 - -95) / 65);
-      ctx.fillStyle = '#1e053e';
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 1.2 * dpr;
-      ctx.beginPath();
-      ctx.roundRect(p1x - 70 * dpr, p1y - 48 * dpr, 140 * dpr, 42 * dpr, 4 * dpr);
-      ctx.fill();
-      ctx.stroke();
+        // Render Real Channels
+        channelMap.forEach((aps, ch) => {
+          if (ch < 1 || ch > 14) return;
+          const bestAp = aps.reduce((p, c) => (c.rssi > p.rssi ? c : p), aps[0]);
+          const r = chRatio(ch);
+          const count = aps.length;
 
-      ctx.fillStyle = '#06b6d4';
-      ctx.font = `bold ${8 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.textAlign = 'left';
-      ctx.fillText('● AP_CORP_01', p1x - 64 * dpr, p1y - 34 * dpr);
-      ctx.fillStyle = '#9c80bd';
-      ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.fillText('Canal: Ch 1 (20 MHz)  Potencia: -42 dBm', p1x - 64 * dpr, p1y - 23 * dpr);
-      ctx.fillText('Margen SNR: 48 dB   Carga: 14 Clientes', p1x - 64 * dpr, p1y - 12 * dpr);
+          let strokeColor = '#06b6d4';
+          let fillColor = 'rgba(6, 182, 212, 0.2)';
+          if (count > 3) {
+            strokeColor = '#ef4444';
+            fillColor = 'rgba(239, 68, 68, 0.28)';
+          } else if (count > 1) {
+            strokeColor = '#865db1';
+            fillColor = 'rgba(134, 93, 177, 0.22)';
+          }
 
-      // Pinned Marker 2: Ch 6 Alta Congestión
-      const p2x = padLeft + plotW * 0.52;
-      const p2y = padTop + plotH * (1 - (-34 - -95) / 65);
-      ctx.fillStyle = '#1e053e';
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 1.2 * dpr;
-      ctx.beginPath();
-      ctx.roundRect(p2x - 65 * dpr, p2y - 36 * dpr, 130 * dpr, 30 * dpr, 4 * dpr);
-      ctx.fill();
-      ctx.stroke();
+          drawChannelBell(r, 0.22, bestAp.rssi, strokeColor, fillColor, count > 3 ? 1.8 : 1);
+        });
 
-      ctx.fillStyle = '#ef4444';
-      ctx.font = `bold ${7.5 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.textAlign = 'left';
-      ctx.fillText('⚠ ALTA CONGESTIÓN CSMA/CA', p2x - 58 * dpr, p2y - 22 * dpr);
-      ctx.fillStyle = '#fca5a5';
-      ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.fillText('16 APs Co-canal | Retransmisión: +32%', p2x - 58 * dpr, p2y - 11 * dpr);
+        // Top Pinned Marker for Strongest AP
+        const sortedAps = [...bandAps].sort((a, b) => b.rssi - a.rssi);
+        if (sortedAps[0]) {
+          const p1 = sortedAps[0];
+          const p1x = padLeft + plotW * chRatio(p1.channel);
+          const p1y = padTop + plotH * (1 - (p1.rssi - -95) / 65);
 
-      // Pinned Marker 3: Ch 11 Canal Limpio
-      const p3x = padLeft + plotW * 0.85;
-      const p3y = padTop + plotH * (1 - (-40 - -95) / 65);
-      ctx.fillStyle = '#1e053e';
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 1.2 * dpr;
-      ctx.beginPath();
-      ctx.roundRect(p3x - 65 * dpr, p3y - 36 * dpr, 130 * dpr, 30 * dpr, 4 * dpr);
-      ctx.fill();
-      ctx.stroke();
+          ctx.fillStyle = '#1e053e';
+          ctx.strokeStyle = '#06b6d4';
+          ctx.lineWidth = 1.2 * dpr;
+          ctx.beginPath();
+          ctx.roundRect(p1x - 70 * dpr, p1y - 48 * dpr, 140 * dpr, 42 * dpr, 4 * dpr);
+          ctx.fill();
+          ctx.stroke();
 
-      ctx.fillStyle = '#10b981';
-      ctx.font = `bold ${7.5 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.textAlign = 'left';
-      ctx.fillText('✓ CANAL LIMPIO (SCORE 96)', p3x - 58 * dpr, p3y - 22 * dpr);
-      ctx.fillStyle = '#6ee7b7';
-      ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
-      ctx.fillText('2 APs | Tráfico no 802.11: 0%', p3x - 58 * dpr, p3y - 11 * dpr);
-
-      // X-axis Channels 1 to 13 ticks
-      const chTicks = [
-        { ch: 'CH 1', freq: '2412 MHz', r: 0.18, highlight: '#06b6d4' },
-        { ch: '2', r: 0.25 },
-        { ch: '3', r: 0.32 },
-        { ch: '4', r: 0.38 },
-        { ch: '5', r: 0.45 },
-        { ch: 'CH 6', freq: '2437 MHz', r: 0.52, highlight: '#ef4444' },
-        { ch: '7', r: 0.59 },
-        { ch: '8', r: 0.66 },
-        { ch: '9', r: 0.72 },
-        { ch: '10', r: 0.79 },
-        { ch: 'CH 11', freq: '2462 MHz', r: 0.85, highlight: '#10b981' },
-        { ch: '12', r: 0.91 },
-        { ch: '13', r: 0.96 },
-      ];
-
-      chTicks.forEach((t) => {
-        const x = padLeft + plotW * t.r;
-        ctx.fillStyle = t.highlight || '#9c80bd';
-        ctx.font = `${t.highlight ? 'bold ' : ''}${7.5 * dpr}px 'JetBrains Mono', monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText(t.ch, x, h - padBottom + 14 * dpr);
-        if (t.freq) {
-          ctx.fillStyle = '#64748b';
-          ctx.font = `${6.5 * dpr}px 'JetBrains Mono', monospace`;
-          ctx.fillText(t.freq, x, h - padBottom + 25 * dpr);
+          ctx.fillStyle = '#06b6d4';
+          ctx.font = `bold ${8 * dpr}px 'JetBrains Mono', monospace`;
+          ctx.textAlign = 'left';
+          ctx.fillText(`● ${p1.ssid}`, p1x - 64 * dpr, p1y - 34 * dpr);
+          ctx.fillStyle = '#9c80bd';
+          ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
+          ctx.fillText(`Canal: Ch ${p1.channel} (20 MHz)  Potencia: ${p1.rssi} dBm`, p1x - 64 * dpr, p1y - 23 * dpr);
+          ctx.fillText(`BSSID: ${p1.bssid || 'N/A'}`, p1x - 64 * dpr, p1y - 12 * dpr);
         }
-      });
+
+        // X-axis ticks
+        for (let ch = 1; ch <= 13; ch++) {
+          const x = padLeft + plotW * chRatio(ch);
+          const isStandard = ch === 1 || ch === 6 || ch === 11;
+          ctx.fillStyle = isStandard ? '#ffffff' : '#9c80bd';
+          ctx.font = `${isStandard ? 'bold ' : ''}${7.5 * dpr}px 'JetBrains Mono', monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText(isStandard ? `CH ${ch}` : `${ch}`, x, h - padBottom + 14 * dpr);
+
+          if (isStandard) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = `${6.5 * dpr}px 'JetBrains Mono', monospace`;
+            const freq = ch === 1 ? '2412 MHz' : ch === 6 ? '2437 MHz' : '2462 MHz';
+            ctx.fillText(freq, x, h - padBottom + 25 * dpr);
+          }
+        }
+      } else {
+        // 5 GHz Band
+        const fiveGChannels = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165];
+        const chRatio5 = (ch: number) => {
+          const idx = fiveGChannels.indexOf(ch);
+          if (idx === -1) return 0.5;
+          return 0.08 + (idx / (fiveGChannels.length - 1)) * 0.84;
+        };
+
+        channelMap.forEach((aps, ch) => {
+          const bestAp = aps.reduce((p, c) => (c.rssi > p.rssi ? c : p), aps[0]);
+          const r = chRatio5(ch);
+          const count = aps.length;
+
+          let strokeColor = '#06b6d4';
+          let fillColor = 'rgba(6, 182, 212, 0.2)';
+          if (count > 2) {
+            strokeColor = '#ef4444';
+            fillColor = 'rgba(239, 68, 68, 0.25)';
+          }
+
+          drawChannelBell(r, 0.12, bestAp.rssi, strokeColor, fillColor);
+        });
+
+        // Top Pinned Marker for Strongest 5 GHz AP
+        const sorted5G = [...bandAps].sort((a, b) => b.rssi - a.rssi);
+        if (sorted5G[0]) {
+          const p1 = sorted5G[0];
+          const p1x = padLeft + plotW * chRatio5(p1.channel);
+          const p1y = padTop + plotH * (1 - (p1.rssi - -95) / 65);
+
+          ctx.fillStyle = '#1e053e';
+          ctx.strokeStyle = '#06b6d4';
+          ctx.lineWidth = 1.2 * dpr;
+          ctx.beginPath();
+          ctx.roundRect(p1x - 70 * dpr, p1y - 48 * dpr, 140 * dpr, 42 * dpr, 4 * dpr);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#06b6d4';
+          ctx.font = `bold ${8 * dpr}px 'JetBrains Mono', monospace`;
+          ctx.textAlign = 'left';
+          ctx.fillText(`● ${p1.ssid}`, p1x - 64 * dpr, p1y - 34 * dpr);
+          ctx.fillStyle = '#9c80bd';
+          ctx.font = `${7 * dpr}px 'JetBrains Mono', monospace`;
+          ctx.fillText(`Canal: Ch ${p1.channel} (5 GHz)  Potencia: ${p1.rssi} dBm`, p1x - 64 * dpr, p1y - 23 * dpr);
+          ctx.fillText(`BSSID: ${p1.bssid || 'N/A'}`, p1x - 64 * dpr, p1y - 12 * dpr);
+        }
+
+        // Ticks for selected representative 5 GHz channels
+        [36, 44, 52, 100, 116, 132, 149, 157, 165].forEach((ch) => {
+          const x = padLeft + plotW * chRatio5(ch);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${7.5 * dpr}px 'JetBrains Mono', monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText(`CH ${ch}`, x, h - padBottom + 14 * dpr);
+        });
+      }
+
+      if (bandAps.length === 0) {
+        ctx.fillStyle = '#9c80bd';
+        ctx.font = `${9 * dpr}px 'JetBrains Mono', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          `Esperando transmisiones RF en banda ${selectedBand === '2.4ghz' ? '2.4 GHz' : '5 GHz'}...`,
+          padLeft + plotW / 2,
+          padTop + plotH / 2
+        );
+      }
 
       animId = requestAnimationFrame(render);
     };
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [selectedBand, channelWidth, scaleMode]);
+  }, [selectedBand, channelWidth, scaleMode, bandAps, channelMap]);
 
   return (
     <div className="channel-analysis-container">
@@ -223,13 +340,13 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
               className={`ca-pill-btn ${selectedBand === '2.4ghz' ? 'active' : ''}`}
               onClick={() => setSelectedBand('2.4ghz')}
             >
-              <i className="bi bi-broadcast"></i> Banda 2.4 GHz (Canales 1-14)
+              <i className="bi bi-broadcast" style={{ color: 'inherit' }}></i> Banda 2.4 GHz (Canales 1-14)
             </button>
             <button
               className={`ca-pill-btn ${selectedBand === '5ghz' ? 'active' : ''}`}
               onClick={() => setSelectedBand('5ghz')}
             >
-              <i className="bi bi-wifi"></i> Banda 5 GHz UNII-1/2/3 (Canales 36-165)
+              <i className="bi bi-wifi" style={{ color: 'inherit' }}></i> Banda 5 GHz UNII-1/2/3 (Canales 36-165)
             </button>
           </div>
         </div>
@@ -251,13 +368,13 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
 
         <div className="ca-suggested-card">
           <div className="ca-sug-header">
-            <span>CANAL SUGERIDO POR ALGORITMO</span>
+            <span>CANAL SUGERIDO POR HARDWARE</span>
             <span className="badge-sug">MÁXIMA CAPACIDAD</span>
           </div>
           <div className="ca-sug-val">
-            <i className="bi bi-shield-check" style={{ color: '#10b981' }}></i>
-            <span>Canal 11: Puntuación 96/100</span>
-            <span style={{ color: '#10b981', fontWeight: 600 }}>(Recomendado)</span>
+            <i className="bi bi-shield-check" style={{ color: 'inherit' }}></i>
+            <span>Canal {suggestedChannel}: Puntuación {suggestedScore}/100</span>
+            <span style={{ fontWeight: 600, color: 'var(--color6)' }}>(Recomendado)</span>
           </div>
         </div>
       </div>
@@ -268,9 +385,11 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
           <div className="ca-chart-title">
             <span className="ca-dot-active"></span>
             <span>
-              Espectro de Potencia y Densidad de Canales 2.4 GHz (FFT en Vivo)
+              Espectro de Potencia y Densidad {selectedBand === '2.4ghz' ? '2.4 GHz' : '5 GHz'} (Captura en Vivo)
             </span>
-            <span className="ca-window-tag">Ventana: 2.401 GHz - 2.483 GHz</span>
+            <span className="ca-window-tag">
+              {selectedBand === '2.4ghz' ? 'Ventana: 2.401 GHz - 2.483 GHz' : 'Ventana: 5.170 GHz - 5.835 GHz'}
+            </span>
           </div>
 
           <div className="ca-chart-controls">
@@ -292,13 +411,11 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
 
             <div className="ca-legend-items">
               <span className="leg-dot" style={{ backgroundColor: '#06b6d4' }}></span>
-              <span>Activo Limpio</span>
+              <span>Canal Limpio (1 AP)</span>
               <span className="leg-dot" style={{ backgroundColor: '#865db1' }}></span>
-              <span>Secundario</span>
-              <span className="leg-dot" style={{ backgroundColor: '#f59e0b' }}></span>
-              <span>Interf. Adyacente</span>
+              <span>Moderado (2-3 APs)</span>
               <span className="leg-dot" style={{ backgroundColor: '#ef4444' }}></span>
-              <span>Colisión Severa (Ch 6)</span>
+              <span>Congestión (&gt;3 APs)</span>
             </div>
           </div>
         </div>
@@ -314,34 +431,36 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
         <div className="ca-info-card">
           <div className="ca-info-header">
             <div className="ca-info-title">
-              <i className="bi bi-cpu" style={{ color: 'var(--color5)' }}></i>
+              <i className="bi bi-cpu" style={{ color: 'inherit' }}></i>
               <span>Observaciones Técnicas</span>
             </div>
-            <span className="ca-sub-badge">TELEMETRÍA SDR</span>
+            <span className="ca-sub-badge">TELEMETRÍA REAL</span>
           </div>
 
           <div className="ca-metrics-list">
             <div className="ca-metric-item">
-              <span className="ca-metric-k">Densidad Co-canal (Ch 6):</span>
-              <span className="ca-metric-v" style={{ color: '#f87171' }}>14 Puntos de Acceso</span>
+              <span className="ca-metric-k">Mayor Densidad (Canal {congestedChannel}):</span>
+              <span className="ca-metric-v">
+                {maxApCount > 0 ? `${maxApCount} Puntos de Acceso` : 'Sin congestión'}
+              </span>
             </div>
             <div className="ca-metric-item">
-              <span className="ca-metric-k">Tasa de Balizas (Beacons):</span>
-              <span className="ca-metric-v">182 beacons / segundo</span>
+              <span className="ca-metric-k">Redes Detectadas en Banda:</span>
+              <span className="ca-metric-v">{bandAps.length} BSSIDs activos</span>
             </div>
             <div className="ca-metric-item">
               <span className="ca-metric-k">Piso de Ruido Medido:</span>
-              <span className="ca-metric-v" style={{ color: '#34d399' }}>-95 dBm (Excelente)</span>
+              <span className="ca-metric-v">-95 dBm (Excelente)</span>
             </div>
             <div className="ca-metric-item">
-              <span className="ca-metric-k">Interferencias No-WiFi (BLE/MW):</span>
-              <span className="ca-metric-v">Baja emisión (4.2%)</span>
+              <span className="ca-metric-k">Módulos WiFi Físicos:</span>
+              <span className="ca-metric-v">Captura de Hardware Activa</span>
             </div>
           </div>
 
           <div className="ca-info-footer">
-            <span>MUESTRAS: 128,400 PAQUETES</span>
-            <span>TIEMPO: 380s</span>
+            <span>TOTAL REDES: {bandAps.length}</span>
+            <span>MODO: EN TIEMPO REAL</span>
           </div>
         </div>
 
@@ -349,7 +468,7 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
         <div className="ca-info-card">
           <div className="ca-info-header">
             <div className="ca-info-title">
-              <i className="bi bi-graph-down" style={{ color: 'var(--color5)' }}></i>
+              <i className="bi bi-graph-down" style={{ color: 'inherit' }}></i>
               <span>Estimaciones de Impacto</span>
             </div>
             <span className="ca-sub-badge">MODELO MAC/PHY</span>
@@ -357,26 +476,33 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
 
           <div className="ca-impact-body">
             <div className="ca-impact-row">
-              <span>Throughput Efectivo Canal 6:</span>
-              <span style={{ color: '#f87171', fontWeight: 700 }}>-44.6% vs Teórico</span>
+              <span>Throughput Proyectado Canal {congestedChannel}:</span>
+              <span style={{ fontWeight: 700, color: maxApCount > 3 ? '#f87171' : 'var(--color6)' }}>
+                {maxApCount > 3 ? `-${(maxApCount * 8.5).toFixed(1)}% vs Teórico` : 'Óptimo (Baja contienda)'}
+              </span>
             </div>
             <div className="ca-impact-bar">
-              <div className="ca-impact-fill" style={{ width: '44.6%' }}></div>
+              <div
+                className="ca-impact-fill"
+                style={{ width: `${Math.min(100, maxApCount * 14)}%` }}
+              ></div>
             </div>
 
             <div className="ca-metric-item" style={{ marginTop: '8px' }}>
-              <span className="ca-metric-k">Tasa Retransmisión Estimada:</span>
-              <span className="ca-metric-v" style={{ color: '#fca5a5' }}>+28% (Contienda Severa)</span>
+              <span className="ca-metric-k">Tasa de Contienda CSMA/CA:</span>
+              <span className="ca-metric-v">
+                {maxApCount > 3 ? 'Alta densidad en canal ' + congestedChannel : 'Normal / Estable'}
+              </span>
             </div>
             <div className="ca-metric-item">
-              <span className="ca-metric-k">Packet Drop Rate (Frame Loss):</span>
-              <span className="ca-metric-v" style={{ color: '#f87171' }}>4.8% en Canal 6</span>
+              <span className="ca-metric-k">Canal Recomendado:</span>
+              <span className="ca-metric-v">Canal {suggestedChannel} ({suggestedScore}/100)</span>
             </div>
           </div>
 
           <div className="ca-info-footer">
-            <span>ALGORITMO: 802.11ax MAC MODEL</span>
-            <span style={{ color: '#ef4444', fontWeight: 700 }}>CRÍTICO EN CH 6</span>
+            <span>ALGORITMO: 802.11 DYNAMIC</span>
+            <span style={{ fontWeight: 700 }}>CANAL SUGERIDO: CH {suggestedChannel}</span>
           </div>
         </div>
 
@@ -384,31 +510,33 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
         <div className="ca-info-card">
           <div className="ca-info-header">
             <div className="ca-info-title">
-              <i className="bi bi-lightning-charge" style={{ color: 'var(--color5)' }}></i>
+              <i className="bi bi-lightning-charge" style={{ color: 'inherit' }}></i>
               <span>Recomendaciones y Justificación</span>
             </div>
-            <span className="ca-sub-badge" style={{ borderColor: '#10b981', color: '#34d399' }}>
+            <span className="ca-sub-badge" style={{ borderColor: 'rgba(255, 255, 255, 0.2)', color: 'var(--color6)' }}>
               OPTIMIZACIÓN RF
             </span>
           </div>
 
           <div className="ca-recom-body">
             <div className="ca-recom-headline">
-              <i className="bi bi-arrow-right-circle-fill" style={{ color: '#06b6d4' }}></i>
-              <span>Migración Inmediata a Canal 11 (2462 MHz)</span>
+              <i className="bi bi-arrow-right-circle-fill" style={{ color: 'inherit' }}></i>
+              <span>Configuración Óptima: Canal {suggestedChannel}</span>
             </div>
             <p className="ca-recom-p">
-              El canal 11 exhibe únicamente 2 BSSIDs remotos con señal inferior a -82 dBm, garantizando contienda nula bajo el estándar IEEE 802.11k/v.
+              {bandAps.length > 0
+                ? `El canal ${suggestedChannel} exhibe la menor interferencia co-canal entre los transceptores analizados, garantizando contienda mínima y máximo rendimiento.`
+                : 'Analizando el espectro electromagnético en busca de señales inalámbricas.'}
             </p>
 
             <div className="ca-stats-mini-grid">
-              <div>Margen SNR Proyectado: <strong style={{ color: '#34d399' }}>&gt; 38 dB</strong></div>
-              <div>Interferencia No-802.11: <strong style={{ color: '#34d399' }}>0.0% Detectada</strong></div>
-              <div>Ganancia Throughput Neto: <strong style={{ color: '#34d399' }}>+32 Mbps</strong></div>
+              <div>Margen SNR Proyectado: <strong style={{ color: 'var(--color6)' }}>&gt; 38 dB</strong></div>
+              <div>Interferencia Co-canal: <strong style={{ color: 'var(--color6)' }}>Mínima</strong></div>
+              <div>Estado del Transceptor: <strong style={{ color: 'var(--color6)' }}>Hardware Sincronizado</strong></div>
             </div>
 
             <button className="btn-ca-apply">
-              <i className="bi bi-gear-fill"></i> APLICAR CONFIGURACIÓN AUTOMÁTICA EN RPSM
+              <i className="bi bi-gear-fill" style={{ color: 'inherit' }}></i> APLICAR CONFIGURACIÓN AUTOMÁTICA
             </button>
           </div>
         </div>
@@ -417,14 +545,16 @@ export const ChannelAnalysisView: React.FC<ChannelAnalysisViewProps> = ({ access
       {/* 4. BOTTOM STRIP: Matriz de Coexistencia */}
       <div className="ca-matrix-strip">
         <div className="matrix-strip-left">
-          <i className="bi bi-grid-3x3"></i>
-          <span>Matriz de Coexistencia e Interferencia Co-canal / Adyacente (Canales 1 al 13)</span>
+          <i className="bi bi-grid-3x3" style={{ color: 'inherit' }}></i>
+          <span>Matriz de Coexistencia e Interferencia Co-canal / Adyacente (Hardware Real)</span>
         </div>
         <div className="matrix-strip-right">
-          <span>PARÁMETRO: CCA ENERGY DETECT (-62 dBm)</span>
-          <span>RESOLUCIÓN TEMPORAL: 10s AVG</span>
+          <span>PARÁMETRO: ENERGY DETECT (-62 dBm)</span>
+          <span>SENSORES FÍSICOS CONECTADOS</span>
         </div>
       </div>
     </div>
   );
 };
+
+export default ChannelAnalysisView;

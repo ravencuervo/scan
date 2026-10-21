@@ -35,45 +35,24 @@
   font-weight: 500;
 }
 
-.header-sim-badge {
-  background-color: rgba(6, 182, 212, 0.2);
-  border: 1px solid #06b6d4;
-  color: #38bdf8;
-  font-size: 0.62rem;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin-left: 6px;
-}
-
-.header-mode-toggle {
-  display: flex;
-  background-color: var(--color1);
-  border: 1px solid var(--color3);
-  border-radius: 6px;
-  padding: 2px;
-  gap: 2px;
-}
-
-.header-mode-btn {
-  background: transparent;
-  border: none;
-  padding: 4px 10px;
+.header-hardware-live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--color6);
   font-size: 0.68rem;
   font-family: var(--font-mono);
   font-weight: 700;
-  color: var(--text-muted);
+  padding: 3px 8px;
   border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.header-mode-btn.active {
-  background-color: var(--color5);
-  color: #ffffff;
-  box-shadow: 0 0 10px rgba(134, 93, 177, 0.4);
+.header-hardware-live-tag i {
+  color: inherit;
+  font-size: 0.85rem;
 }
 
 .header-right-actions {

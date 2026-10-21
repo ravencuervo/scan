@@ -34,7 +34,7 @@ export const NetworksTable: React.FC<NetworksTableProps> = ({ accessPoints }) =>
     <section className="panel table-panel">
       <div className="panel-header">
         <div className="panel-title">
-          <i className="bi bi-list-columns-reverse" style={{ color: 'var(--color5)' }}></i>
+          <i className="bi bi-list-columns-reverse" style={{ color: 'inherit' }}></i>
           <span>Inventario de Redes Inalámbricas Detectadas</span>
         </div>
 
@@ -79,6 +79,7 @@ export const NetworksTable: React.FC<NetworksTableProps> = ({ accessPoints }) =>
               <th>SSID (Nombre de Red)</th>
               <th>BSSID (MAC)</th>
               <th>Fabricante</th>
+              <th>Adaptador</th>
               <th>Canal</th>
               <th>Banda</th>
               <th>Potencia Señal (RSSI)</th>
@@ -111,6 +112,22 @@ export const NetworksTable: React.FC<NetworksTableProps> = ({ accessPoints }) =>
                       </span>
                     </td>
                     <td>{ap.vendor || 'Desconocido'}</td>
+                    <td>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontFamily: 'var(--font-mono)',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.07)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          color: 'var(--color6)',
+                        }}
+                      >
+                        <i className="bi bi-wifi" style={{ marginRight: '5px', color: 'inherit' }}></i>
+                        {ap.adapter_name || 'Wi-Fi'}
+                      </span>
+                    </td>
                     <td>
                       <span style={{ fontWeight: 700, color: 'var(--color5)', fontFamily: 'var(--font-mono)' }}>
                         {ap.channel}

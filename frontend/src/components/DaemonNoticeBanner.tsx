@@ -13,8 +13,8 @@ export const DaemonNoticeBanner: React.FC<DaemonNoticeBannerProps> = ({ isLive, 
         <i className="bi bi-info-circle-fill"></i>
         <span>
           {isLive
-            ? `Motor de captura sincronizado en tiempo real (${engineType.toUpperCase()}). Transmitiendo métricas del daemon en puerto 8765.`
-            : 'Modo demostrativo sincronizado. Motor de captura no conectado: Las métricas reales se sincronizarán al iniciar el servicio local daemon en puerto 8765'}
+            ? `Captura de hardware en tiempo real activa (${engineType.toUpperCase()}). Transmitiendo telemetría continua por WebSockets.`
+            : 'Inicializando enlace con los adaptadores físicos de radio. Sincronizando con el servicio en puerto 8765...'}
         </span>
       </div>
 

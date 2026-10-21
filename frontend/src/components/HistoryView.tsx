@@ -8,50 +8,44 @@ interface HistoryViewProps {
 export const HistoryView: React.FC<HistoryViewProps> = ({ onGeneratePdf }) => {
   const [bandFilter, setBandFilter] = useState<'all' | '2.4ghz' | '5ghz' | '6ghz'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSessions, setSelectedSessions] = useState<string[]>([
-    '#SES-2025-0512-B',
-    '#SES-2025-0512-A',
-  ]);
+  const [realSessions, setRealSessions] = useState<any[]>([]);
+  const [selectedSessions, setSelectedSessions] = useState<string[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const sessionsData = [
+  useEffect(() => {
+    fetch('/api/sessions')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((s: any) => ({
+            id: `#SES-${s.id}`,
+            name: s.name,
+            location: s.location,
+            date: s.start_time ? new Date(s.start_time).toLocaleString('es-ES') : 'En curso',
+            channels: '2.4 GHz & 5 GHz',
+            occupancy: s.engine_type === 'windows' ? 'Hardware Real' : 'WLAN',
+            collisions: `${s.samples_count || 0} muestras`,
+            status: s.status === 'completed' ? 'FINALIZADA' : 'ACTIVA',
+            color: s.status === 'completed' ? '#10b981' : '#38bdf8',
+          }));
+          setRealSessions(mapped);
+          setSelectedSessions([mapped[0].id]);
+        }
+      })
+      .catch((err) => console.warn('Error fetching real sessions:', err));
+  }, []);
+
+  const sessionsData = realSessions.length > 0 ? realSessions : [
     {
-      id: '#SES-2025-0512-B',
-      date: '12 May 2025 17:15',
-      channels: 'Ch 1-14 / 36-165',
-      occupancy: '46.1%',
-      collisions: '2 colisiones',
-      status: 'OPTIMIZADO',
+      id: '#SES-EN-VIVO',
+      date: new Date().toLocaleDateString('es-ES'),
+      channels: '2.4 GHz & 5 GHz',
+      occupancy: 'Hardware Real',
+      collisions: 'Captura en curso',
+      status: 'ACTIVA',
       color: '#10b981',
-    },
-    {
-      id: '#SES-2025-0512-A',
-      date: '12 May 2025 09:30',
-      channels: 'Ch 1-14 / 36-165',
-      occupancy: '78.4%',
-      collisions: '16 colisiones',
-      status: 'CRÍTICO',
-      color: '#ef4444',
-    },
-    {
-      id: '#SES-2025-0511-C',
-      date: '11 May 2025 16:45',
-      channels: 'Ch 1-14',
-      occupancy: '62.0%',
-      collisions: '8 colisiones',
-      status: 'MODERADO',
-      color: '#f59e0b',
-    },
-    {
-      id: '#SES-2025-0510-A',
-      date: '10 May 2025 11:20',
-      channels: 'Ch 36-165',
-      occupancy: '34.5%',
-      collisions: '1 colisión',
-      status: 'DESPEJADO',
-      color: '#10b981',
-    },
+    }
   ];
 
   const toggleSelect = (id: string) => {
@@ -226,7 +220,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onGeneratePdf }) => {
         <div className="hist-filter-left">
           <div className="hist-input-box">
             <i className="bi bi-calendar3"></i>
-            <span>12 May 2025 (Hoy)</span>
+            <span>{new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })} (Hoy)</span>
           </div>
 
           <div className="hist-band-group">
@@ -306,7 +300,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onGeneratePdf }) => {
 
           <div className="hist-verdict-banner">
             <div className="verdict-txt">
-              <i className="bi bi-check-circle-fill" style={{ color: '#10b981' }}></i>
+              <i className="bi bi-check-circle-fill" style={{ color: 'inherit' }}></i>
               <span>
                 <strong>DICTAMEN TÉCNICO COMPARATIVO:</strong> La reasignación de canales en 2.4 GHz redujo las tramas de retransmisión a niveles nominales.
               </span>
@@ -391,7 +385,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ onGeneratePdf }) => {
       <div className="hist-table-card">
         <div className="hist-table-header">
           <div className="hist-table-title">
-            <i className="bi bi-clock-history" style={{ color: 'var(--color5)' }}></i>
+            <i className="bi bi-clock-history" style={{ color: 'inherit' }}></i>
             <span>Registro de Sesiones Almacenadas en Disco</span>
           </div>
           <div className="hist-table-actions">

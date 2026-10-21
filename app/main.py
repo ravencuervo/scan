@@ -51,6 +51,7 @@ class AppState:
     def __init__(self):
         self.current_session_id: Optional[int] = None
         self.engine_type: str = "simulation"
+        self.selected_adapter: str = "ALL"
         self.engine: Optional[BaseCaptureEngine] = None
         self.latest_aps: List[ScannedAP] = []
         self.latest_metrics: Dict[str, Any] = {}
@@ -70,6 +71,10 @@ class StartSessionRequest(BaseModel):
     engine_type: str = "auto"
     notes: str = ""
     user_id: Optional[int] = None
+    adapter_id: Optional[str] = "ALL"
+
+class SelectAdapterRequest(BaseModel):
+    adapter_id: str
 
 # Active session tokens: token -> user dict
 ACTIVE_TOKENS: Dict[str, Dict[str, Any]] = {}
@@ -96,6 +101,8 @@ async def startup_event():
     # Initialize default capture engine
     state.engine = create_capture_engine(engine_type="auto", callback=on_capture_callback)
     state.engine_type = "windows" if state.engine.__class__.__name__ == "WindowsNativeEngine" else ("scapy" if "Scapy" in state.engine.__class__.__name__ else "simulation")
+    if hasattr(state.engine, "selected_adapter"):
+        state.engine.selected_adapter = state.selected_adapter
     logger.info(f"Initialized capture engine: {state.engine.__class__.__name__} (Mode: {state.engine_type})")
     
     # Auto-start default background session
@@ -152,16 +159,51 @@ async def logout(token: Optional[str] = None):
         del ACTIVE_TOKENS[token]
     return {"status": "logged_out"}
 
+# Hardware Adapters Endpoints
+@app.get("/api/hardware/adapters")
+async def get_hardware_adapters():
+    """Detect and return all Wi-Fi hardware modules (PCIe internal, USB dongles, etc.)."""
+    adapters = []
+    if state.engine and hasattr(state.engine, "get_adapters"):
+        adapters = [a.to_dict() for a in state.engine.get_adapters()]
+    elif WindowsNativeEngine().is_hardware_available():
+        adapters = [a.to_dict() for a in WindowsNativeEngine().get_adapters()]
+    return {
+        "total": len(adapters),
+        "adapters": adapters,
+        "selected_adapter": getattr(state.engine, "selected_adapter", state.selected_adapter) if state.engine else state.selected_adapter,
+        "engine_type": state.engine_type
+    }
+
+@app.post("/api/hardware/adapters/select")
+async def select_hardware_adapter(req: SelectAdapterRequest):
+    """Switch active hardware adapter or select 'ALL' for multi-sensor capture."""
+    state.selected_adapter = req.adapter_id
+    if state.engine and hasattr(state.engine, "set_active_adapter"):
+        state.engine.set_active_adapter(req.adapter_id)
+    if state.engine:
+        state.latest_aps = state.engine.scan_once()
+        state.latest_metrics = SpectrumAnalyzer.compute_channel_metrics(state.latest_aps)
+    return {
+        "status": "ok",
+        "selected_adapter": req.adapter_id,
+        "total_aps": len(state.latest_aps)
+    }
+
 # API Endpoints
 @app.get("/api/status")
 async def get_status():
+    adapters = [a.to_dict() for a in state.engine.get_adapters()] if (state.engine and hasattr(state.engine, "get_adapters")) else []
     return {
         "status": "online",
         "current_session_id": state.current_session_id,
         "engine_type": state.engine_type,
         "engine_class": state.engine.__class__.__name__ if state.engine else "None",
         "is_capturing": state.engine.is_running if state.engine else False,
-        "total_aps_detected": len(state.latest_aps)
+        "total_aps_detected": len(state.latest_aps),
+        "total_adapters_detected": len(adapters),
+        "adapters": adapters,
+        "selected_adapter": getattr(state.engine, "selected_adapter", state.selected_adapter) if state.engine else state.selected_adapter
     }
 
 @app.post("/api/session/start")
@@ -172,6 +214,11 @@ async def start_session(req: StartSessionRequest):
     state.engine = create_capture_engine(engine_type=req.engine_type, callback=on_capture_callback)
     state.engine_type = req.engine_type
     
+    if req.adapter_id:
+        state.selected_adapter = req.adapter_id
+        if hasattr(state.engine, "set_active_adapter"):
+            state.engine.set_active_adapter(req.adapter_id)
+
     session_id = DatabaseManager.create_session(
         name=req.name,
         location=req.location,
@@ -182,8 +229,8 @@ async def start_session(req: StartSessionRequest):
     state.current_session_id = session_id
     state.engine.start()
 
-    logger.info(f"Started new session #{session_id} using engine: {state.engine_type}")
-    return {"session_id": session_id, "engine_type": state.engine_type, "status": "started"}
+    logger.info(f"Started new session #{session_id} using engine: {state.engine_type} (adapter: {state.selected_adapter})")
+    return {"session_id": session_id, "engine_type": state.engine_type, "selected_adapter": state.selected_adapter, "status": "started"}
 
 @app.post("/api/session/stop")
 async def stop_session():
@@ -289,11 +336,14 @@ async def websocket_spectrum(websocket: WebSocket):
     state.active_websockets.append(websocket)
     try:
         while True:
-            # Send latest metrics and AP list
+            # Send latest metrics, AP list and hardware adapters
+            adapters = [a.to_dict() for a in state.engine.get_adapters()] if (state.engine and hasattr(state.engine, "get_adapters")) else []
             payload = {
                 "type": "telemetry_update",
                 "session_id": state.current_session_id,
                 "engine_type": state.engine_type,
+                "adapters": adapters,
+                "selected_adapter": getattr(state.engine, "selected_adapter", state.selected_adapter) if state.engine else state.selected_adapter,
                 "metrics": state.latest_metrics,
                 "recommendations": SpectrumOptimizer.generate_recommendations(state.latest_metrics),
                 "access_points": [ap.to_dict() for ap in state.latest_aps]

@@ -46,7 +46,7 @@ export const DiagnosticSidebar: React.FC<DiagnosticSidebarProps> = ({ recommenda
       <div className="panel" style={{ flex: 1 }}>
         <div className="panel-header" style={{ padding: '12px 16px' }}>
           <div className="panel-title" style={{ fontSize: '0.85rem' }}>
-            <i className="bi bi-shield-exclamation" style={{ color: 'var(--color5)' }}></i>
+            <i className="bi bi-shield-exclamation" style={{ color: 'inherit' }}></i>
             <span>Hallazgos de Ingeniería</span>
           </div>
         </div>

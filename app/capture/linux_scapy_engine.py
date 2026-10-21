@@ -5,7 +5,7 @@ import threading
 import logging
 import subprocess
 from typing import List, Optional, Callable, Dict, Any
-from app.capture.hal import BaseCaptureEngine, ScannedAP, channel_to_frequency, rssi_to_quality, lookup_vendor
+from app.capture.hal import BaseCaptureEngine, ScannedAP, WirelessAdapter, channel_to_frequency, rssi_to_quality, lookup_vendor
 from app.core.config import CHANNELS_24_GHZ
 
 logger = logging.getLogger("aeroscan.capture.scapy")
@@ -24,6 +24,25 @@ class LinuxScapyMonitorEngine(BaseCaptureEngine):
         self._stop_event = threading.Event()
         self._detected_aps: Dict[str, ScannedAP] = {}
         self._lock = threading.Lock()
+
+    def get_adapters(self) -> List[WirelessAdapter]:
+        adapters: List[WirelessAdapter] = []
+        if not sys.platform.startswith("linux"):
+            return adapters
+        try:
+            if os.path.exists(f"/sys/class/net/{self.interface}"):
+                adapters.append(WirelessAdapter(
+                    id=self.interface,
+                    name=self.interface,
+                    description=f"Linux Monitor Interface ({self.interface})",
+                    mac_address="00:00:00:00:00:00",
+                    status="connected",
+                    radio_type="802.11 Monitor Mode",
+                    is_physical=True
+                ))
+        except Exception:
+            pass
+        return adapters
 
     def is_hardware_available(self) -> bool:
         """Check if running on Linux/WSL and wireless interface exists."""

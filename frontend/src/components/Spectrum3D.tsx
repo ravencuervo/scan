@@ -235,7 +235,7 @@ export const Spectrum3D: React.FC<Spectrum3DProps> = ({ accessPoints }) => {
     <div className="three-container">
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       <div className="three-controls-overlay">
-        <i className="bi bi-arrows-move" style={{ color: 'var(--color5)' }}></i>
+        <i className="bi bi-arrows-move" style={{ color: 'inherit' }}></i>
         <span>Arrastrar para rotar 3D • Rueda para Zoom</span>
       </div>
     </div>
