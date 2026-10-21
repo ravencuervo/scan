@@ -1,0 +1,442 @@
+/* ==========================================================================
+   AeroScan Channel Analysis View Styles (Image 3 reference)
+   ========================================================================== */
+
+.channel-analysis-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+/* 1. TOP FILTER BAR */
+.ca-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  flex-wrap: wrap;
+}
+
+.ca-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ca-filter-label {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ca-toggle-pills,
+.ca-width-pills {
+  display: flex;
+  background-color: var(--color1);
+  border: 1px solid var(--color3);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.ca-pill-btn {
+  background: transparent;
+  border: none;
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ca-pill-btn.active {
+  background-color: rgba(6, 182, 212, 0.2);
+  border: 1px solid #06b6d4;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.ca-w-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.ca-w-btn.active {
+  background-color: var(--color4);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.ca-suggested-card {
+  background-color: var(--color1);
+  border: 1px solid var(--color3);
+  border-radius: 6px;
+  padding: 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ca-sug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+.badge-sug {
+  background-color: rgba(16, 185, 129, 0.15);
+  border: 1px solid #10b981;
+  color: #34d399;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.ca-sug-val {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--color6);
+  font-weight: 700;
+}
+
+/* 2. MIDDLE MAIN SPECTRAL GRAPH */
+.ca-chart-card {
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ca-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ca-chart-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color6);
+}
+
+.ca-dot-active {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #06b6d4;
+  box-shadow: 0 0 6px #06b6d4;
+}
+
+.ca-window-tag {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.ca-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ca-scale-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+.scale-btn {
+  background-color: var(--color1);
+  border: 1px solid var(--color3);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.scale-btn.active {
+  background-color: var(--color4);
+  color: #ffffff;
+  border-color: var(--color5);
+}
+
+.ca-legend-items {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.leg-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ca-canvas-wrap {
+  width: 100%;
+  height: 310px;
+  background-color: var(--color1);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(88, 51, 131, 0.4);
+}
+
+.ca-canvas-wrap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 3. BOTTOM 3-CARD ROW */
+.ca-triplet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.ca-info-card {
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.ca-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ca-info-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color6);
+}
+
+.ca-sub-badge {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  border: 1px solid var(--color4);
+  color: var(--color5);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.ca-metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ca-metric-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(88, 51, 131, 0.2);
+}
+
+.ca-metric-k {
+  color: var(--text-muted);
+}
+
+.ca-metric-v {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color6);
+}
+
+.ca-info-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  border-top: 1px solid rgba(88, 51, 131, 0.3);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+/* Impact card */
+.ca-impact-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ca-impact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.ca-impact-bar {
+  width: 100%;
+  height: 5px;
+  background-color: var(--color1);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--color3);
+}
+
+.ca-impact-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+/* Recommendation card */
+.ca-recom-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ca-recom-headline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.ca-recom-p {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.ca-stats-mini-grid {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background-color: var(--color1);
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color3);
+}
+
+.btn-ca-apply {
+  background-color: rgba(6, 182, 212, 0.2);
+  border: 1px solid #06b6d4;
+  color: #38bdf8;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  margin-top: 4px;
+}
+
+.btn-ca-apply:hover {
+  background-color: #06b6d4;
+  color: #000;
+}
+
+/* 4. BOTTOM MATRIX STRIP */
+.ca-matrix-strip {
+  background-color: rgba(41, 8, 84, 0.6);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.matrix-strip-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color6);
+  font-weight: 600;
+}
+
+.matrix-strip-left i {
+  color: var(--color5);
+}
+
+.matrix-strip-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-dim);
+}
+
+@media (max-width: 1100px) {
+  .ca-triplet-grid {
+    grid-template-columns: 1fr;
+  }
+}

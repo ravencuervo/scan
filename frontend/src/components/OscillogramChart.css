@@ -1,0 +1,183 @@
+/* ==========================================================================
+   AeroScan Temporal Density Oscillogram Chart Styles
+   ========================================================================== */
+
+.oscillogram-panel {
+  background-color: var(--color2);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.oscillogram-header {
+  padding: 12px 18px;
+  background-color: rgba(41, 8, 84, 0.45);
+  border-bottom: 1px solid var(--color3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.oscillogram-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.oscillogram-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--color5);
+  box-shadow: 0 0 6px var(--color5);
+}
+
+.oscillogram-title-txt {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color6);
+}
+
+.oscillogram-fft-res {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.oscillogram-view-tabs {
+  display: flex;
+  background-color: var(--color1);
+  border: 1px solid var(--color3);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.oscillogram-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.oscillogram-tab-btn.active {
+  background-color: var(--color5);
+  color: #ffffff;
+}
+
+/* Filter Controls Bar */
+.oscillogram-filters-bar {
+  padding: 8px 18px;
+  background-color: rgba(41, 8, 84, 0.25);
+  border-bottom: 1px solid rgba(88, 51, 131, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-select-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filter-select-label {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.filter-select-input {
+  background-color: var(--color1);
+  border: 1px solid var(--color3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  color: var(--color6);
+  outline: none;
+  cursor: pointer;
+}
+
+.filter-select-input:focus {
+  border-color: var(--color5);
+}
+
+/* Oscillogram Canvas Body */
+.oscillogram-canvas-container {
+  flex: 1;
+  min-height: 280px;
+  position: relative;
+  background-color: var(--color1);
+  overflow: hidden;
+}
+
+canvas#oscillogramCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Legend Footer */
+.oscillogram-footer {
+  padding: 8px 18px;
+  background-color: rgba(41, 8, 84, 0.5);
+  border-top: 1px solid var(--color3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+}
+
+.oscillogram-legend-items {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.legend-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color6);
+}
+
+.legend-line {
+  width: 14px;
+  height: 2px;
+  display: inline-block;
+}
+
+.legend-line-dashed {
+  width: 14px;
+  height: 1px;
+  border-top: 2px dashed #94a3b8;
+  display: inline-block;
+}
+
+.antenna-spec-tag {
+  color: var(--text-dim);
+  font-size: 0.68rem;
+}

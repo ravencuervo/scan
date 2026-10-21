@@ -1,0 +1,242 @@
+/* ==========================================================================
+   AeroScan Fullscreen Split Login Overlay (100vw x 100vh)
+   ========================================================================== */
+
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--color1);
+  display: flex;
+  flex-direction: row;
+  z-index: 3000;
+  overflow: hidden;
+  animation: loginFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes loginFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==========================================================================
+   LEFT PANE: Full-Height Form & Control Console (No Box-Shadow)
+   ========================================================================== */
+.login-left-pane {
+  width: 480px;
+  min-width: 380px;
+  height: 100vh;
+  background-color: var(--color2);
+  border-right: 1px solid var(--color3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 44px;
+  box-shadow: none; /* Sombra eliminada */
+  z-index: 20;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Ambient subtle top edge accent */
+.login-left-pane::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color5), var(--color4));
+}
+
+.login-content-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+}
+
+.login-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.login-logo-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background-color: rgba(41, 8, 84, 0.8);
+  border: 1px solid var(--color3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  flex-shrink: 0;
+}
+
+.login-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.login-titles h2 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--color6);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-titles p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+.login-welcome-text {
+  margin-bottom: 24px;
+}
+
+.login-welcome-text h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color6);
+  letter-spacing: -0.01em;
+}
+
+.login-error {
+  background-color: rgba(88, 51, 131, 0.35);
+  border: 1px solid var(--color5);
+  color: #ffccd5;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color6);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.login-field input {
+  background-color: var(--color1);
+  border: 1px solid var(--color3);
+  border-radius: var(--radius-md);
+  padding: 13px 16px;
+  color: var(--color6);
+  font-size: 0.95rem;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-field input:focus {
+  border-color: var(--color5);
+  box-shadow: 0 0 0 3px rgba(134, 93, 177, 0.35);
+}
+
+.login-btn {
+  background-color: var(--color5);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 18px rgba(134, 93, 177, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.login-btn:hover:not(:disabled) {
+  background-color: var(--color4);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(134, 93, 177, 0.65);
+}
+
+.login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   RIGHT PANE: Fullscreen Three.js 3D Viewport
+   ========================================================================== */
+.login-right-pane {
+  flex: 1;
+  height: 100vh;
+  position: relative;
+  background-color: var(--color1);
+  overflow: hidden;
+}
+
+/* Responsive query for tablets/mobile */
+@media (max-width: 900px) {
+  .login-overlay {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .login-left-pane {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    min-height: auto;
+    order: 2;
+    padding: 32px 24px;
+  }
+  .login-right-pane {
+    width: 100%;
+    height: 340px;
+    min-height: 340px;
+    flex: none;
+    order: 1;
+    border-bottom: 1px solid var(--color3);
+  }
+}

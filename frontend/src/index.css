@@ -1,0 +1,187 @@
+@import "tailwindcss";
+@import 'bootstrap-icons/font/bootstrap-icons.css';
+
+/* ==========================================================================
+   AeroScan Tactical Spectrum Design System
+   User Palette:
+     .color1 { #290854 };  -- Deep midnight velvet (Base / Body)
+     .color2 { #401d6b };  -- Deep royal purple (Panels / Cards)
+     .color3 { #583383 };  -- Intermediate purple (Borders / Dividers)
+     .color4 { #6f489a };  -- Bright amethyst (Accents / Active tab / Hover)
+     .color5 { #865db1 };  -- Light purple / lilac (Primary CTA / Highlights)
+     .colo6  blanco;       -- Pure White #ffffff (Typography / High Contrast)
+   ========================================================================== */
+
+@theme {
+  --color-brand-1: #290854;
+  --color-brand-2: #401d6b;
+  --color-brand-3: #583383;
+  --color-brand-4: #6f489a;
+  --color-brand-5: #865db1;
+  --color-brand-6: #ffffff;
+}
+
+:root {
+  --color1: #290854;
+  --color2: #401d6b;
+  --color3: #583383;
+  --color4: #6f489a;
+  --color5: #865db1;
+  --color6: #ffffff;
+
+  --bg-deep: var(--color1);
+  --bg-surface: var(--color2);
+  --bg-surface-elevated: #4b237d;
+  --bg-surface-border: var(--color3);
+  --bg-hover: var(--color4);
+
+  --text-main: var(--color6);
+  --text-muted: #d5c4ec;
+  --text-dim: #9c80bd;
+
+  --accent-primary: var(--color5);
+  --accent-secondary: var(--color4);
+  --accent-light: #ab85d9;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-card: 0 10px 25px rgba(18, 3, 39, 0.6);
+  --shadow-glow: 0 0 20px rgba(134, 93, 177, 0.35);
+}
+
+/* User Explicit Color Classes */
+.color1 { background-color: #290854; color: #ffffff; }
+.color2 { background-color: #401d6b; color: #ffffff; }
+.color3 { background-color: #583383; color: #ffffff; }
+.color4 { background-color: #6f489a; color: #ffffff; }
+.color5 { background-color: #865db1; color: #ffffff; }
+.color6 { background-color: #ffffff; color: #290854; }
+.colo6  { background-color: #ffffff; color: #290854; }
+
+.text-color1 { color: #290854; }
+.text-color2 { color: #401d6b; }
+.text-color3 { color: #583383; }
+.text-color4 { color: #6f489a; }
+.text-color5 { color: #865db1; }
+.text-color6 { color: #ffffff; }
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color1);
+  color: var(--color6);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Ambient engineering grid overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  background: 
+    linear-gradient(rgba(134, 93, 177, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(134, 93, 177, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color1);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color5);
+}
+
+/* Shared Tactical Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--color5);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(134, 93, 177, 0.4);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color4);
+  box-shadow: 0 6px 20px rgba(134, 93, 177, 0.6);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--color2);
+  color: var(--color6);
+  border-color: var(--color3);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--color5);
+  background-color: var(--bg-surface-elevated);
+}
+
+.btn-export-pdf {
+  background-color: rgba(111, 72, 154, 0.3);
+  color: var(--color6);
+  border-color: var(--color4);
+}
+
+.btn-export-pdf:hover:not(:disabled) {
+  background-color: var(--color4);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(111, 72, 154, 0.5);
+}
+
+.btn-export-excel {
+  background-color: var(--color2);
+  color: var(--color6);
+  border-color: var(--color3);
+}
+
+.btn-export-excel:hover:not(:disabled) {
+  border-color: var(--color5);
+  color: var(--color6);
+  background-color: var(--color3);
+}
